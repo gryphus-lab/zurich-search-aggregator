@@ -7,9 +7,9 @@ from pathlib import Path
 def setup_logger():
     """
     Configure and return the module logger used by the scraper, including console and file handlers.
-    
+
     Creates or reconfigures a logger named "zurich_aggregator". Existing handlers are cleared to prevent duplicate output. Attaches a console StreamHandler that writes INFO-level messages to stdout with a concise time/level/name/message format, and ensures a "results" directory exists before attaching a UTF-8 FileHandler that writes DEBUG-level logs to results/scraper.log with a detailed formatter including function name and line number.
-    
+
     Returns:
         logging.Logger: The configured logger named "zurich_aggregator".
     """

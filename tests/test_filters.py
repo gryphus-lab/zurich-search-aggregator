@@ -19,14 +19,14 @@ def make_listing(
 ) -> ApartmentListing:
     """
     Create a test ApartmentListing populated with sensible defaults for unit tests.
-    
+
     Parameters:
         link (str): Listing URL; the listing `id` is derived from the last path segment of this value, or `"id"` if that segment is empty.
         price_chf (float): Price in Swiss francs to set on the listing.
         neighborhood (str): Neighborhood name to set on the listing.
         description_snippet (str | None): Optional short description/snippet for the listing.
         available_from (date | None): Optional move-in date for the listing.
-    
+
     Returns:
         ApartmentListing: An instance with:
             - id: derived from `link` as described above
@@ -263,7 +263,9 @@ def test_is_month_to_month_friendly_each_keyword():
             neighborhood="Oerlikon",
             description_snippet=kw,
         )
-        assert is_month_to_month_friendly(listing) is True, f"keyword '{kw}' not detected"
+        assert is_month_to_month_friendly(listing) is True, (
+            f"keyword '{kw}' not detected"
+        )
 
 
 def test_apply_filters_empty_listings_returns_empty():
@@ -391,12 +393,20 @@ def test_apply_filters_price_at_exact_boundary_is_included():
 
 
 def test_generate_unique_id_differs_for_different_prices():
-    a = make_listing(link="https://example.com/p", price_chf=2000.0, neighborhood="Oerlikon")
-    b = make_listing(link="https://example.com/p", price_chf=2100.0, neighborhood="Oerlikon")
+    a = make_listing(
+        link="https://example.com/p", price_chf=2000.0, neighborhood="Oerlikon"
+    )
+    b = make_listing(
+        link="https://example.com/p", price_chf=2100.0, neighborhood="Oerlikon"
+    )
     assert generate_unique_id(a) != generate_unique_id(b)
 
 
 def test_generate_unique_id_differs_for_different_links():
-    a = make_listing(link="https://example.com/x", price_chf=2000.0, neighborhood="Oerlikon")
-    b = make_listing(link="https://example.com/y", price_chf=2000.0, neighborhood="Oerlikon")
+    a = make_listing(
+        link="https://example.com/x", price_chf=2000.0, neighborhood="Oerlikon"
+    )
+    b = make_listing(
+        link="https://example.com/y", price_chf=2000.0, neighborhood="Oerlikon"
+    )
     assert generate_unique_id(a) != generate_unique_id(b)

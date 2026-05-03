@@ -1,9 +1,7 @@
 import logging
 import sys
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from src.aggregator.logger import setup_logger
 
@@ -32,7 +30,9 @@ def test_setup_logger_has_exactly_two_handlers():
 def test_setup_logger_has_stream_handler_on_stdout():
     logger = setup_logger()
     stream_handlers = [
-        h for h in logger.handlers if isinstance(h, logging.StreamHandler)
+        h
+        for h in logger.handlers
+        if isinstance(h, logging.StreamHandler)
         and not isinstance(h, logging.FileHandler)
     ]
     assert len(stream_handlers) == 1
@@ -47,15 +47,19 @@ def test_setup_logger_has_file_handler():
 
 def test_setup_logger_file_handler_level_is_debug():
     logger = setup_logger()
-    file_handler = next(h for h in logger.handlers if isinstance(h, logging.FileHandler))
+    file_handler = next(
+        h for h in logger.handlers if isinstance(h, logging.FileHandler)
+    )
     assert file_handler.level == logging.DEBUG
 
 
 def test_setup_logger_stream_handler_level_is_info():
     logger = setup_logger()
     stream_handler = next(
-        h for h in logger.handlers
-        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        h
+        for h in logger.handlers
+        if isinstance(h, logging.StreamHandler)
+        and not isinstance(h, logging.FileHandler)
     )
     assert stream_handler.level == logging.INFO
 
@@ -89,5 +93,6 @@ def test_setup_logger_clears_duplicate_handlers():
 def test_global_logger_is_available():
     """The module-level 'logger' singleton should be importable and usable."""
     from src.aggregator.logger import logger as global_logger
+
     assert global_logger is not None
     assert global_logger.name == "zurich_aggregator"

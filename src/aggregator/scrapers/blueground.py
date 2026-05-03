@@ -12,10 +12,10 @@ from ..logger import logger
 def get_checkout_one_year_later(start_date: date) -> date:
     """
     Compute a checkout date one year after `start_date`, adjusted to the last day of the month that precedes the original month in the following year.
-    
+
     Parameters:
         start_date (date): The reference start date.
-    
+
     Returns:
         date: The date corresponding to the last day of the month immediately before `start_date.month` in the year `start_date.year + 1`. For example, 2026-05-01 -> 2027-04-30.
     """
@@ -30,15 +30,15 @@ def get_checkout_one_year_later(start_date: date) -> date:
 def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
     """
     Parse an "available from" string into a date.
-    
+
     Strips a leading "Available" (case-insensitive) and attempts to parse the remaining text using several common date formats.
-    
+
     Parameters:
         avail_str (Optional[str]): Input string possibly prefixed with "Available" and containing a date (e.g. "Available 1 Jan 2024").
-    
+
     Returns:
         Optional[date]: The parsed `date` if parsing succeeds, `None` if the input is falsy or no supported format matches.
-    
+
     Accepted date formats:
         - "%d %b %Y" (e.g. "1 Jan 2024")
         - "%b %d %Y" (e.g. "Jan 1 2024")
@@ -65,13 +65,13 @@ def parse_blueground_card(
 ) -> Optional[ApartmentListing]:
     """
     Parse a Blueground listing card's raw text and construct an ApartmentListing populated with extracted fields.
-    
+
     Parameters:
         text (str): Raw inner-text of the card element to parse.
         neighborhood (str): Neighborhood used as a fallback for address when one cannot be extracted.
         move_in_from (Optional[date]): Optional move-in date to filter listings. If provided with a link, reject if parsed available_from is earlier (apartment would be rented out by move-in date). Returns None in that case.
         link (Optional[str]): Optional link to the listing; if not provided, one is generated from title. The ID is extracted from the last path segment of the link.
-    
+
     Returns:
         Optional[ApartmentListing]: An ApartmentListing populated with id, title, address, price_chf, neighborhood,
         link, available_from, size_m2, rooms (None), source ("blueground"), furnished (True), a short description_snippet,
@@ -103,12 +103,19 @@ def parse_blueground_card(
     available_from_text = available_match.group(1).strip() if available_match else None
     parsed_available_from = parse_available_from(available_from_text)
     logger.info(f"Parsed available from: {parsed_available_from}")
-    
+
     # If move_in_from provided AND link was provided, reject if parsed date is earlier than move_in
-    if move_in_from and link and parsed_available_from and parsed_available_from < move_in_from:
-        logger.info(f"Rejecting: parsed date {parsed_available_from} is earlier than move_in_from {move_in_from} (with link filtering)")
+    if (
+        move_in_from
+        and link
+        and parsed_available_from
+        and parsed_available_from < move_in_from
+    ):
+        logger.info(
+            f"Rejecting: parsed date {parsed_available_from} is earlier than move_in_from {move_in_from} (with link filtering)"
+        )
         return None
-    
+
     # Use move_in_from if provided, else use parsed available_from
     available_from = move_in_from if move_in_from else parsed_available_from
     logger.info(f"Available from: {available_from}")
@@ -116,7 +123,8 @@ def parse_blueground_card(
     price_match = re.search(r"^.*CHF(.*$)", text, re.MULTILINE)
     price_str = (
         price_match.group(1).replace("'", "").replace("'", "").replace(",", "").strip()
-        if price_match else ""
+        if price_match
+        else ""
     )
     if price_str:
         try:
@@ -168,13 +176,13 @@ def scrape_blueground(
 ) -> List[ApartmentListing]:
     """
     Scrape apartment listings from Blueground for the given neighborhoods and optional move-in date.
-    
+
     Parameters:
         price_min (int): Minimum price shown in logs; not used to filter results.
         price_max (int): Maximum price shown in logs; not used to filter results.
         neighborhoods (List[str] | None): List of neighborhood names to scrape. Defaults to a predefined set when None.
         move_in_from (date | None): Optional move-in date used to request availability date range on the site.
-    
+
     Returns:
         List[ApartmentListing]: Collected apartment listings parsed from Blueground cards.
     """

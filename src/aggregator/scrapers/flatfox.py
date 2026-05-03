@@ -11,12 +11,12 @@ from ..logger import logger  # standard logger
 def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
     """
     Parse a free-form availability string into a date.
-    
+
     Leading phrases in German or English such as "ab", "from", "sofort", "verfügbar ab", or "available from" are ignored before parsing. Accepted date formats are "DD.MM.YYYY", "D Month YYYY" (full month name), "D Mon YYYY" (abbreviated month), and "YYYY-MM-DD". Returns None if the input is falsy or no supported format matches.
-    
+
     Parameters:
         avail_str (Optional[str]): Availability text (e.g., "ab 01.05.2024", "from 2024-05-01").
-    
+
     Returns:
         Optional[date]: The parsed date, or `None` when parsing fails or input is empty.
     """
@@ -42,13 +42,13 @@ def parse_flatfox_card(
 ) -> Optional[ApartmentListing]:
     """
     Parse a Flatfox listing card's text and link into an ApartmentListing object.
-    
+
     Parses price, title (preferring detected room count), availability date, and size from the provided card text; constructs an ApartmentListing with source "flatfox" and furnished=True. Returns None when the text is too short, the link is missing, a price cannot be extracted, or the listing is filtered out because its availability is earlier than `move_in_from`.
-    
+
     Parameters:
         neighborhood (str): Neighborhood name used as fallback for title and address when not present in the card.
         move_in_from (Optional[date]): If provided, exclude listings whose parsed available date is earlier than this date.
-    
+
     Returns:
         ApartmentListing or None: An ApartmentListing populated from the card, or `None` if parsing fails or the listing is excluded.
     """
@@ -130,14 +130,14 @@ def scrape_flatfox(
 ) -> List[ApartmentListing]:
     """
     Scrape furnished apartment listings from Flatfox for the specified neighborhoods and price range.
-    
+
     Parameters:
         price_min (int): Minimum monthly rent (CHF) to include.
         price_max (int): Maximum monthly rent (CHF) to include.
         neighborhoods (List[str] | None): Neighborhood names to search; defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"] when None.
         move_in_from (date | None): If provided, exclude listings whose parsed available-from date is earlier than this date.
         max_pages (int): Maximum number of paginated search result pages to request per neighborhood.
-    
+
     Returns:
         List[ApartmentListing]: Collected apartment listings that match the furnished, neighborhood, price, and move-in filters.
     """

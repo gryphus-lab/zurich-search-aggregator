@@ -4,10 +4,10 @@ Tests for src/aggregator/scrapers/__init__.py  (run_all_scrapers).
 The Playwright-based scraper functions (scrape_flatfox, scrape_blueground)
 are mocked so no browser is launched.
 """
-from datetime import date
-from unittest.mock import patch, MagicMock
 
-import pytest
+from datetime import date
+from unittest.mock import patch
+
 
 from src.aggregator.models import ApartmentListing
 from src.aggregator.scrapers import run_all_scrapers
@@ -21,12 +21,12 @@ from src.aggregator.scrapers import run_all_scrapers
 def _make_listing(source: str, link: str, price: float = 2000.0) -> ApartmentListing:
     """
     Create a test ApartmentListing with the given source, link, and price.
-    
+
     Parameters:
         source (str): Origin identifier for the listing (e.g., "flatfox", "blueground").
         link (str): URL or path for the listing; the listing's `id` is taken from the last path segment of this value.
         price (float): Price in CHF to set on the listing (default 2000.0).
-    
+
     Returns:
         ApartmentListing: An ApartmentListing populated with the provided `source`, `link`, and `price_chf`, and with fixed `title` ("Test flat") and `neighborhood` ("Oerlikon").
     """
@@ -70,7 +70,7 @@ def test_run_all_scrapers_combines_both_sources(mock_flatfox, mock_blueground):
 def test_run_all_scrapers_passes_parameters_to_flatfox(mock_flatfox, mock_blueground):
     """
     Verifies that run_all_scrapers forwards the price range, neighborhoods, move-in date, and max_pages parameters to the Flatfox scraper.
-    
+
     Calls run_all_scrapers with specific filters and asserts scrape_flatfox is invoked exactly once with those same arguments.
     """
     mock_flatfox.return_value = []
@@ -96,7 +96,9 @@ def test_run_all_scrapers_passes_parameters_to_flatfox(mock_flatfox, mock_bluegr
 
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_passes_parameters_to_blueground(mock_flatfox, mock_blueground):
+def test_run_all_scrapers_passes_parameters_to_blueground(
+    mock_flatfox, mock_blueground
+):
     mock_flatfox.return_value = []
     mock_blueground.return_value = []
 
@@ -172,7 +174,9 @@ def test_run_all_scrapers_continues_if_blueground_raises(mock_flatfox, mock_blue
 
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_continues_if_both_scrapers_raise(mock_flatfox, mock_blueground):
+def test_run_all_scrapers_continues_if_both_scrapers_raise(
+    mock_flatfox, mock_blueground
+):
     """Both scrapers failing should yield an empty list, not an exception."""
     mock_flatfox.side_effect = Exception("ff down")
     mock_blueground.side_effect = Exception("bg down")

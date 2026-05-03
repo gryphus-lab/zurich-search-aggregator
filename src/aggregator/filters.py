@@ -9,12 +9,12 @@ from .logger import logger  # standard logger
 def normalize_neighborhood(neigh: str) -> str:
     """
     Normalize a neighborhood string to a canonical neighborhood name.
-    
+
     Maps known variants (for example, "oerlikon zürich" or "quartier oerlikon") to a canonical form and returns the mapped value; if no mapping exists, returns the input title-cased.
-    
+
     Parameters:
         neigh (str): Neighborhood string to normalize; may include variants, punctuation, or leading "quartier-".
-    
+
     Returns:
         str: Canonical neighborhood name when recognized (e.g., "Oerlikon"), otherwise the input with title casing.
     """
@@ -26,16 +26,23 @@ def normalize_neighborhood(neigh: str) -> str:
         "oerlikon zürich": "Oerlikon",
         "quartier oerlikon": "Oerlikon",
     }
-    key = neigh.lower().strip().replace(" ", "-").replace("quartier-", "").replace("zürich", "").rstrip("-")
+    key = (
+        neigh.lower()
+        .strip()
+        .replace(" ", "-")
+        .replace("quartier-", "")
+        .replace("zürich", "")
+        .rstrip("-")
+    )
     return mapping.get(key, neigh.title())
 
 
 def is_month_to_month_friendly(listing: ApartmentListing) -> bool:
     """
     Detect whether a listing advertises flexible, temporary, or furnished tenancy.
-    
+
     Performs a case-insensitive substring check of the listing's description and raw data for common flexibility/service/furnishing keywords.
-    
+
     Returns:
         True if any flexibility/service/furnishing keyword is found, False otherwise.
     """
@@ -60,10 +67,10 @@ def is_month_to_month_friendly(listing: ApartmentListing) -> bool:
 def generate_unique_id(listing: ApartmentListing) -> str:
     """
     Produce a deterministic 16-hex-character identifier for a listing derived from its link and whole-CHF price.
-    
+
     Parameters:
         listing (ApartmentListing): Listing whose `link` and `price_chf` (rounded to no decimal places) are used to compute the identifier.
-    
+
     Returns:
         str: A 16-character hexadecimal string (first 16 chars of the MD5 hash of the derived key).
     """
@@ -81,9 +88,9 @@ def apply_filters(
 ) -> List[ApartmentListing]:
     """
     Apply a set of filters to apartment listings and return the filtered, deduplicated, and sorted results.
-    
+
     Filters applied: price range, normalized neighborhood membership, optional earliest move-in date, and optional month-to-month friendliness. Listings are deduplicated using a deterministic ID derived from the listing and sorted by ascending price then by availability date.
-    
+
     Parameters:
         listings (List[ApartmentListing]): Input apartment listings to filter.
         price_min (int): Minimum acceptable price (inclusive).
@@ -93,10 +100,10 @@ def apply_filters(
             If `None`, a default set of neighborhoods is used.
         only_month_to_month (bool): If True, only listings classified as month-to-month friendly are retained; when False,
             both types are retained but listings are annotated.
-    
+
     Returns:
         List[ApartmentListing]: Filtered, deduplicated, and sorted listings.
-    
+
     Notes:
         - This function mutates each kept listing's `description_snippet` by prefixing it with either "[FLEXIBLE] " or "[STANDARD] ".
         - Deduplication uses a deterministic 16-character MD5-based ID derived from the listing (e.g., link and rounded price).

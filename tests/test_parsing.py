@@ -8,6 +8,7 @@ from src.aggregator.scrapers.flatfox import (
     parse_available_from as parse_flatfox_available_from,
 )
 from src.aggregator.scrapers.flatfox import parse_flatfox_card
+from src.aggregator.scrapers.blueground import get_checkout_one_year_later
 
 
 def test_blueground_parse_available_from_supported_formats():
@@ -106,8 +107,6 @@ def test_parse_flatfox_card_move_in_filter_returns_none():
 # ---------------------------------------------------------------------------
 # get_checkout_one_year_later
 # ---------------------------------------------------------------------------
-
-from src.aggregator.scrapers.blueground import get_checkout_one_year_later
 
 
 def test_get_checkout_one_year_later_mid_year():

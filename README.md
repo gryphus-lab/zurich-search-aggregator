@@ -5,7 +5,7 @@ Results are written to JSON (and optionally CSV).
 
 ## What it does
 
-- Scrapes listings from supported sources (e.g. `flatfox.ch`,  `theblueground.com`).
+- Scrapes listings from supported sources (e.g. `flatfox.ch`, `theblueground.com`).
 - Filters by:
   - price range (CHF/month)
   - neighborhood(s)
