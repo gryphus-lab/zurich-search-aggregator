@@ -11,6 +11,7 @@ Validates the structure and content of:
 import re
 import tomllib
 from pathlib import Path
+from urllib.parse import urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
@@ -534,9 +535,16 @@ def test_uv_lock_has_revision():
 
 
 def test_uv_lock_packages_reference_pypi():
-    """All packages in uv.lock should come from pypi.org."""
+    """All package URLs in uv.lock should resolve to the pypi.org host."""
     content = UV_LOCK_PATH.read_text()
-    assert "pypi.org" in content, "uv.lock packages should reference pypi.org"
+    urls = re.findall(r'https?://[^\s"\'<>]+', content)
+    assert urls, "uv.lock should contain package source URLs"
+
+    for url in urls:
+        hostname = urlparse(url).hostname
+        assert hostname == "pypi.org", (
+            f"uv.lock URL host must be pypi.org, got {hostname!r} from {url!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
