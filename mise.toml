@@ -21,6 +21,13 @@ run = [
   "playwright install chromium --with-deps",
 ]
 
+[tasks.info]
+description = "Print project information"
+run = '''
+echo "Project: $PROJECT_NAME"
+echo "Virtual Environment: $VIRTUAL_ENV"
+'''
+
 [tasks.run]
 description = "Run the aggregator with default filters"
 run = "python -m src.aggregator.main"
