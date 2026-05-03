@@ -1,0 +1,14 @@
+beautifulsoup4
+filters
+httpx
+lxml
+pandas
+playwright
+pydantic
+python-dateutil
+python-dotenv
+rich
+pytest>=9.0.3
+pytest-cov>=7.1.0
+ruff>=0.15.11
+typer

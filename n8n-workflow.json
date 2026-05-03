@@ -1,0 +1,95 @@
+{
+  "name": "Zurich Apartment Aggregator",
+  "nodes": [
+    {
+      "parameters": {
+        "cronExpression": "0 8,18 * * *"
+      },
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "./run_scraper.sh",
+        "options": {}
+      },
+      "name": "Execute Scraper",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "filePath": "results/latest.json",
+        "options": {}
+      },
+      "name": "Read Results JSON",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const items = JSON.parse(items[0].binary.data.toString());\n\n// Filter good ones (price + flexible)\nconst goodListings = items.filter(item => \n  item.price_chf >= 1700 && \n  item.price_chf <= 3200 &&\n  (item.description_snippet || '').includes('[FLEXIBLE]')\n);\n\nreturn goodListings.map(listing => ({\n  json: listing\n}));\n"
+      },
+      "name": "Filter Good Matches",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "New Listings",
+        "range": "A:Z"
+      },
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": "Your Google Sheets Credential"
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "{{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🔔 *New Zurich Apartments Found*\n\n{{ $json.title }}\nCHF {{ $json.price_chf }}\n{{ $json.neighborhood }}\nAvailable: {{ $json.available_from || 'Soon' }}\nLink: {{ $json.link }}\n\nTotal good matches today: {{ $input.itemCount }}"
+      },
+      "name": "Telegram Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1120, 400],
+      "credentials": {
+        "telegramApi": "Your Telegram Bot"
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [{"node": "Execute Scraper", "type": "main", "index": 0}]
+      ]
+    },
+    "Execute Scraper": {
+      "main": [
+        [{"node": "Read Results JSON", "type": "main", "index": 0}]
+      ]
+    },
+    "Read Results JSON": {
+      "main": [
+        [{"node": "Filter Good Matches", "type": "main", "index": 0}]
+      ]
+    },
+    "Filter Good Matches": {
+      "main": [
+        [
+          {"node": "Save to Google Sheets", "type": "main", "index": 0},
+          {"node": "Telegram Notification", "type": "main", "index": 0}
+        ]
+      ]
+    }
+  }
+}
