@@ -535,15 +535,16 @@ def test_uv_lock_has_revision():
 
 
 def test_uv_lock_packages_reference_pypi():
-    """All package URLs in uv.lock should resolve to the pypi.org host."""
+    """All package URLs in uv.lock should resolve to PyPI hosts (pypi.org or files.pythonhosted.org)."""
     content = UV_LOCK_PATH.read_text()
     urls = re.findall(r'https?://[^\s"\'<>]+', content)
     assert urls, "uv.lock should contain package source URLs"
 
+    valid_pypi_hosts = {"pypi.org", "files.pythonhosted.org"}
     for url in urls:
         hostname = urlparse(url).hostname
-        assert hostname == "pypi.org", (
-            f"uv.lock URL host must be pypi.org, got {hostname!r} from {url!r}"
+        assert hostname in valid_pypi_hosts, (
+            f"uv.lock URL host must be a PyPI host, got {hostname!r} from {url!r}"
         )
 
 
