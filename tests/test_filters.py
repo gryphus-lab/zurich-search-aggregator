@@ -177,3 +177,204 @@ def test_only_month_to_month_filters_non_flexible_listings():
 
     # Intended behavior: only flexible/month-to-month listings remain.
     assert [x.link for x in filtered] == ["https://example.com/flex"]
+
+
+# ---------------------------------------------------------------------------
+# Additional edge-case and boundary tests
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_neighborhood_all_known_mappings():
+    assert normalize_neighborhood("wipkingen") == "Wipkingen"
+    assert normalize_neighborhood("altstetten") == "Altstetten"
+    assert normalize_neighborhood("oerlikon zürich") == "Oerlikon"
+
+
+def test_normalize_neighborhood_unknown_value_returns_title_cased():
+    assert normalize_neighborhood("hard") == "Hard"
+    assert normalize_neighborhood("ZURICH WEST") == "Zurich West"
+
+
+def test_is_month_to_month_friendly_none_description_snippet_does_not_raise():
+    listing = make_listing(
+        link="https://example.com/x",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        description_snippet=None,
+    )
+    # Should not raise; simply checks raw_data (empty dict)
+    result = is_month_to_month_friendly(listing)
+    assert result is False
+
+
+def test_is_month_to_month_friendly_keyword_in_raw_data():
+    listing = make_listing(
+        link="https://example.com/rd",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        description_snippet=None,
+    )
+    listing.raw_data = {"notes": "serviced apartment, kurzfristig"}
+    assert is_month_to_month_friendly(listing) is True
+
+
+def test_is_month_to_month_friendly_each_keyword():
+    """Verify every individual keyword triggers the flexible flag."""
+    keywords = [
+        "befristet",
+        "temporary",
+        "kurzfristig",
+        "month to month",
+        "monthly",
+        "flexible",
+        "möbliert",
+        "furnished",
+        "serviced",
+        "sublet",
+        "priority rental",
+        "add your move-in date",
+    ]
+    for kw in keywords:
+        listing = make_listing(
+            link=f"https://example.com/{kw}",
+            price_chf=2000,
+            neighborhood="Oerlikon",
+            description_snippet=kw,
+        )
+        assert is_month_to_month_friendly(listing) is True, f"keyword '{kw}' not detected"
+
+
+def test_apply_filters_empty_listings_returns_empty():
+    assert apply_filters([], price_min=1700, price_max=3000) == []
+
+
+def test_apply_filters_no_neighborhoods_uses_default_four():
+    """When neighborhoods is None, all four default neighborhoods are included."""
+    listings = [
+        make_listing(
+            link=f"https://example.com/{neigh}",
+            price_chf=2000,
+            neighborhood=neigh,
+            description_snippet="month to month",
+        )
+        for neigh in ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+    ]
+
+    filtered = apply_filters(
+        listings=listings,
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=None,
+    )
+    assert len(filtered) == 4
+
+
+def test_apply_filters_results_sorted_by_price_ascending():
+    listings = [
+        make_listing(
+            link="https://example.com/c",
+            price_chf=2500,
+            neighborhood="Oerlikon",
+            description_snippet="month to month",
+        ),
+        make_listing(
+            link="https://example.com/a",
+            price_chf=1800,
+            neighborhood="Oerlikon",
+            description_snippet="month to month",
+        ),
+        make_listing(
+            link="https://example.com/b",
+            price_chf=2100,
+            neighborhood="Oerlikon",
+            description_snippet="month to month",
+        ),
+    ]
+
+    filtered = apply_filters(
+        listings=listings,
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+    )
+
+    prices = [apt.price_chf for apt in filtered]
+    assert prices == sorted(prices)
+
+
+def test_apply_filters_marks_standard_listings():
+    """Non-flexible listings should be prefixed with [STANDARD]."""
+    standard = make_listing(
+        link="https://example.com/std2",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        description_snippet="Annual contract only",
+    )
+
+    filtered = apply_filters(
+        listings=[standard],
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        only_month_to_month=False,
+    )
+
+    assert len(filtered) == 1
+    assert filtered[0].description_snippet.startswith("[STANDARD]")
+
+
+def test_apply_filters_listing_without_available_from_passes_move_in_check():
+    """A listing with no available_from should not be excluded by move_in_from."""
+    listing = make_listing(
+        link="https://example.com/nodate",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        available_from=None,
+        description_snippet="month to month furnished",
+    )
+
+    filtered = apply_filters(
+        listings=[listing],
+        price_min=1700,
+        price_max=3000,
+        move_in_from=date(2026, 6, 1),
+        neighborhoods=["Oerlikon"],
+    )
+
+    assert len(filtered) == 1
+
+
+def test_apply_filters_price_at_exact_boundary_is_included():
+    at_min = make_listing(
+        link="https://example.com/min",
+        price_chf=1700,
+        neighborhood="Oerlikon",
+        description_snippet="month to month",
+    )
+    at_max = make_listing(
+        link="https://example.com/max",
+        price_chf=3000,
+        neighborhood="Oerlikon",
+        description_snippet="month to month",
+    )
+
+    filtered = apply_filters(
+        listings=[at_min, at_max],
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+    )
+
+    assert len(filtered) == 2
+
+
+def test_generate_unique_id_differs_for_different_prices():
+    a = make_listing(link="https://example.com/p", price_chf=2000.0, neighborhood="Oerlikon")
+    b = make_listing(link="https://example.com/p", price_chf=2100.0, neighborhood="Oerlikon")
+    assert generate_unique_id(a) != generate_unique_id(b)
+
+
+def test_generate_unique_id_differs_for_different_links():
+    a = make_listing(link="https://example.com/x", price_chf=2000.0, neighborhood="Oerlikon")
+    b = make_listing(link="https://example.com/y", price_chf=2000.0, neighborhood="Oerlikon")
+    assert generate_unique_id(a) != generate_unique_id(b)
