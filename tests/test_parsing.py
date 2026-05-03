@@ -3,7 +3,7 @@ from datetime import date
 from src.aggregator.scrapers.blueground import (
     parse_available_from as parse_bg_available_from,
 )
-from src.aggregator.scrapers.blueground import parse_blueground_card
+from src.aggregator.scrapers.blueground import parse_blueground_card, BLUEGROUND_TITLE
 from src.aggregator.scrapers.flatfox import (
     parse_available_from as parse_flatfox_available_from,
 )
@@ -502,3 +502,88 @@ def test_get_checkout_one_year_later_last_day_of_preceding_month():
     expected_month = 7  # August - 1
     _, expected_last = monthrange(2027, expected_month)
     assert result == date(2027, expected_month, expected_last)
+
+
+# ---------------------------------------------------------------------------
+# BLUEGROUND_TITLE constant (introduced in this PR)
+# ---------------------------------------------------------------------------
+
+
+def test_blueground_title_constant_value():
+    """BLUEGROUND_TITLE must equal the canonical string used throughout the module."""
+    assert BLUEGROUND_TITLE == "Blueground Apartment"
+
+
+def test_blueground_title_constant_is_string():
+    """BLUEGROUND_TITLE must be a plain str, not bytes or any other type."""
+    assert isinstance(BLUEGROUND_TITLE, str)
+
+
+# ---------------------------------------------------------------------------
+# parse_blueground_card – title logic that relies on BLUEGROUND_TITLE
+# ---------------------------------------------------------------------------
+
+
+def test_parse_blueground_card_default_title_exact_match():
+    """When no '#N' pattern is found, the listing title must equal BLUEGROUND_TITLE exactly."""
+    text = "CHF 1800\nNice furnished studio in Oerlikon\n35 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert listing.title == BLUEGROUND_TITLE
+
+
+def test_parse_blueground_card_default_title_not_suffixed_with_address():
+    """When the default BLUEGROUND_TITLE is used, final_title must NOT include ' • <address>'."""
+    text = "CHF 2000\nNo apartment ID here\nAvailable 1 Jun 2026\n40 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Wipkingen")
+
+    assert listing is not None
+    assert " • " not in listing.title
+
+
+def test_parse_blueground_card_with_apt_id_title_includes_address():
+    """When a '#N' pattern is found, final_title must be formatted as 'type • #id • address'."""
+    text = "CHF 2200\nStudio • #77 • Altstetten North\n55 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Altstetten")
+
+    assert listing is not None
+    assert listing.title != BLUEGROUND_TITLE
+    assert " • " in listing.title
+    assert "Altstetten North" in listing.title
+
+
+def test_parse_blueground_card_apt_id_only_title_includes_address():
+    """When '#N' is present but has no room-type prefix, final_title still includes address."""
+    text = "CHF 1900\n#88 • Seebach West\n45 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Seebach")
+
+    assert listing is not None
+    assert listing.title != BLUEGROUND_TITLE
+    assert "Seebach West" in listing.title
+
+
+def test_parse_blueground_card_default_title_used_when_hash_absent_with_link():
+    """BLUEGROUND_TITLE is used even when a link is supplied but text has no '#N' pattern."""
+    text = "CHF 2100\nCozy place near the lake\nAvailable 1 Jul 2026\n38 m²"
+    link = "https://www.theblueground.com/p/furnished-apartments/zrh-cozy-lake"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon", link=link)
+
+    assert listing is not None
+    assert listing.title == BLUEGROUND_TITLE
+
+
+def test_parse_blueground_card_default_title_regression_string_unchanged():
+    """Regression: the string value produced without a '#N' match must remain 'Blueground Apartment'."""
+    text = "CHF 2000\nA lovely flat\n42 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    # Guard against accidental rename of the constant value
+    assert listing.title == "Blueground Apartment"
