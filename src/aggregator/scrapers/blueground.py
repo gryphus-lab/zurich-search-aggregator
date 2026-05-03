@@ -8,6 +8,8 @@ from playwright.sync_api import sync_playwright
 from ..models import ApartmentListing
 from ..logger import logger
 
+BLUEGROUND_TITLE = "Blueground Apartment"
+
 
 def get_checkout_one_year_later(start_date: date) -> date:
     """
@@ -86,7 +88,7 @@ def parse_blueground_card(
         apt_id = title_match.group(2)
         title = f"{room_type} • #{apt_id}" if room_type else apt_id
     else:
-        title = "Blueground Apartment"
+        title = BLUEGROUND_TITLE
         apt_id = None
     logger.info(f"Title: {title}")
 
@@ -144,8 +146,8 @@ def parse_blueground_card(
         link = f"https://www.theblueground.com/p/furnished-apartments/zrh-{link_id}"
 
     # Build title: if default "Blueground Apartment" was used, use as-is; otherwise format as "title • address"
-    if title == "Blueground Apartment":
-        final_title = "Blueground Apartment"
+    if title == BLUEGROUND_TITLE:
+        final_title = BLUEGROUND_TITLE
     else:
         final_title = f"{title} • {address}"
 
@@ -239,7 +241,7 @@ def scrape_blueground(
                 # Scrolling
                 logger.debug("Starting scrolling...")
                 last_height = page.evaluate("document.body.scrollHeight")
-                for i in range(8):
+                for _ in range(8):
                     page.evaluate("window.scrollBy(0, 1800)")
                     page.wait_for_timeout(3500)
                     new_height = page.evaluate("document.body.scrollHeight")

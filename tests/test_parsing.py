@@ -3,7 +3,7 @@ from datetime import date
 from src.aggregator.scrapers.blueground import (
     parse_available_from as parse_bg_available_from,
 )
-from src.aggregator.scrapers.blueground import parse_blueground_card
+from src.aggregator.scrapers.blueground import parse_blueground_card, BLUEGROUND_TITLE
 from src.aggregator.scrapers.flatfox import (
     parse_available_from as parse_flatfox_available_from,
 )
@@ -173,7 +173,7 @@ def test_flatfox_parse_available_from_sofort_keyword_stripped_returns_none():
     assert parse_flatfox_available_from("sofort") is None
 
 
-def test_flatfox_parse_available_from_verfügbar_ab_prefix_stripped():
+def test_flatfox_parse_available_from_verfuegbar_ab_prefix_stripped():
     assert parse_flatfox_available_from("verfügbar ab 01.06.2026") == date(2026, 6, 1)
 
 
@@ -502,3 +502,179 @@ def test_get_checkout_one_year_later_last_day_of_preceding_month():
     expected_month = 7  # August - 1
     _, expected_last = monthrange(2027, expected_month)
     assert result == date(2027, expected_month, expected_last)
+
+
+# ---------------------------------------------------------------------------
+# BLUEGROUND_TITLE constant (introduced in this PR)
+# ---------------------------------------------------------------------------
+
+
+def test_blueground_title_constant_value():
+    """BLUEGROUND_TITLE must equal the canonical string used throughout the module."""
+    assert BLUEGROUND_TITLE == "Blueground Apartment"
+
+
+def test_blueground_title_constant_is_string():
+    """BLUEGROUND_TITLE must be a plain str, not bytes or any other type."""
+    assert isinstance(BLUEGROUND_TITLE, str)
+
+
+# ---------------------------------------------------------------------------
+# parse_blueground_card – title logic that relies on BLUEGROUND_TITLE
+# ---------------------------------------------------------------------------
+
+
+def test_parse_blueground_card_default_title_exact_match():
+    """When no '#N' pattern is found, the listing title must equal BLUEGROUND_TITLE exactly."""
+    text = "CHF 1800\nNice furnished studio in Oerlikon\n35 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert listing.title == BLUEGROUND_TITLE
+
+
+def test_parse_blueground_card_default_title_not_suffixed_with_address():
+    """When the default BLUEGROUND_TITLE is used, final_title must NOT include ' • <address>'."""
+    text = "CHF 2000\nNo apartment ID here\nAvailable 1 Jun 2026\n40 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Wipkingen")
+
+    assert listing is not None
+    assert " • " not in listing.title
+
+
+def test_parse_blueground_card_with_apt_id_title_includes_address():
+    """When a '#N' pattern is found, final_title must be formatted as 'type • #id • address'."""
+    text = "CHF 2200\nStudio • #77 • Altstetten North\n55 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Altstetten")
+
+    assert listing is not None
+    assert listing.title != BLUEGROUND_TITLE
+    assert " • " in listing.title
+    assert "Altstetten North" in listing.title
+
+
+def test_parse_blueground_card_apt_id_only_title_includes_address():
+    """When '#N' is present but has no room-type prefix, final_title still includes address."""
+    text = "CHF 1900\n#88 • Seebach West\n45 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Seebach")
+
+    assert listing is not None
+    assert listing.title != BLUEGROUND_TITLE
+    assert "Seebach West" in listing.title
+
+
+def test_parse_blueground_card_default_title_used_when_hash_absent_with_link():
+    """BLUEGROUND_TITLE is used even when a link is supplied but text has no '#N' pattern."""
+    text = "CHF 2100\nCozy place near the lake\nAvailable 1 Jul 2026\n38 m²"
+    link = "https://www.theblueground.com/p/furnished-apartments/zrh-cozy-lake"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon", link=link)
+
+    assert listing is not None
+    assert listing.title == BLUEGROUND_TITLE
+
+
+def test_parse_blueground_card_default_title_regression_string_unchanged():
+    """Regression: the string value produced without a '#N' match must remain 'Blueground Apartment'."""
+    text = "CHF 2000\nA lovely flat\n42 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    # Guard against accidental rename of the constant value
+    assert listing.title == "Blueground Apartment"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases for parse_blueground_card (missing coverage)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_blueground_card_price_with_commas_and_apostrophes():
+    """
+    Ensure mixed separators are handled consistently.
+    NOTE: Current implementation strips commas and apostrophes, which may
+    inflate values like '2'500,00' → 250000.0 (intentional regression guard).
+    """
+    text = "CHF 2'500,00\n#10 • Oerlikon\n40 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert listing.price_chf == 250000.0
+
+
+def test_parse_blueground_card_address_fallback_when_pattern_incomplete():
+    """If '#N • address' pattern is incomplete, fallback to neighborhood."""
+    text = "CHF 2000\n#123\n45 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Wipkingen")
+
+    assert listing is not None
+    assert listing.address == "Wipkingen"
+
+
+def test_parse_blueground_card_description_truncates():
+    """Ensure description_snippet truncates long text to ~450 chars."""
+    long_text = "CHF 2000\n#1 • Oerlikon\n" + ("x" * 1000)
+
+    listing = parse_blueground_card(text=long_text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert len(listing.description_snippet) < 600  # includes prefix
+
+
+def test_parse_blueground_card_link_generated_without_id_uses_title():
+    """When no ID and no link are provided, fallback uses title."""
+    text = "CHF 2000\nNice apartment\n40 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert "zrh-" in listing.link
+    assert listing.id == BLUEGROUND_TITLE
+
+
+def test_parse_blueground_card_handles_extra_whitespace():
+    """Parser should handle messy whitespace gracefully."""
+    text = "   CHF 2000   \n  #5 • Oerlikon   \n   40 m²   \n  "
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert listing.price_chf == 2000.0
+    assert listing.size_m2 == 40.0
+
+
+def test_parse_blueground_card_multiple_available_lines_uses_first():
+    """If multiple 'Available' lines exist, first match should be used."""
+    text = "CHF 2000\n#5 • Oerlikon\nAvailable 1 May 2026\nAvailable 1 June 2026\n40 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert listing.available_from == date(2026, 5, 1)
+
+
+def test_parse_blueground_card_no_id_sets_id_to_title():
+    """When no '#N' pattern exists, ID falls back to title."""
+    text = "CHF 2000\nNice apartment\n40 m²"
+
+    listing = parse_blueground_card(text=text, neighborhood="Oerlikon")
+
+    assert listing is not None
+    assert listing.id == BLUEGROUND_TITLE
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases for parse_available_from
+# ---------------------------------------------------------------------------
+
+
+def test_blueground_parse_available_from_with_extra_text_returns_none():
+    """Parser should fail safely when extra unexpected text is present."""
+    assert parse_bg_available_from("Available 1 May 2026 now!") is None

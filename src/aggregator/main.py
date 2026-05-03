@@ -1,6 +1,7 @@
 # src/aggregator/main.py
+import json
 import typer
-from datetime import date, datetime  # for date parsing if needed
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional, List
 
@@ -10,7 +11,7 @@ from rich.table import Table
 from .models import ApartmentListing
 from .scrapers import run_all_scrapers
 from .filters import apply_filters
-from .logger import logger  # standard logger
+from .logger import logger
 
 app = typer.Typer(
     name="zurich-apartment-aggregator",
@@ -21,47 +22,33 @@ app = typer.Typer(
 console = Console()
 
 
-@app.command()
-def main(
-    price_min: int = typer.Option(
-        1700, "--min", "-m", help="Minimum monthly rent in CHF"
-    ),
-    price_max: int = typer.Option(
-        3000, "--max", "-M", help="Maximum monthly rent in CHF"
-    ),
-    move_in_from: Optional[str] = typer.Option(
-        None, "--move-in", "-d", help="Earliest move-in date (YYYY-MM-DD)"
-    ),
-    neighborhoods: List[str] = typer.Option(
-        ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"],
-        "--neigh",
-        "-n",
-        help="Neighborhoods to search (space-separated)",
-    ),
-    only_flexible: bool = typer.Option(
-        True,
-        "--flexible/--all",
-        help="Show only month-to-month friendly listings (recommended)",
-    ),
-    output_json: Path = typer.Option(
-        "results/latest.json", "--json", "-j", help="Path to save JSON results"
-    ),
-    export_csv: bool = typer.Option(False, "--csv", help="Also export as CSV"),
-    max_pages: int = typer.Option(
-        5, "--pages", help="Max pages per neighborhood on Immoscout"
-    ),
-):
+def _main_impl(
+    price_min: int = 1700,
+    price_max: int = 3000,
+    move_in_from: Optional[str] = None,
+    neighborhoods: Optional[List[str]] = None,
+    only_flexible: bool = True,
+    output_json: Path = Path("results/latest.json"),
+    export_csv: bool = False,
+    max_pages: int = 5,
+) -> None:
     """
     Run the CLI search for short-term, furnished apartments in specified Zurich neighborhoods and present/save filtered results.
 
     Filters listings by price, move-in date, neighborhoods and month-to-month friendliness, deduplicates results, writes JSON to the provided path (creating parent directories), optionally exports a CSV, and prints a summary table to the console.
 
     Parameters:
+        price_min (int): Minimum monthly rent in CHF.
+        price_max (int): Maximum monthly rent in CHF.
         move_in_from (Optional[str]): Earliest move-in date in `YYYY-MM-DD` format; if provided and invalid, the command exits with code 1.
+        neighborhoods (Optional[List[str]]): List of neighborhoods to search.
+        only_flexible (bool): Filter for month-to-month friendly listings.
         output_json (Path): File path to write JSON results; parent directories will be created if necessary.
         export_csv (bool): If true, also write a CSV file alongside the JSON.
         max_pages (int): Maximum pages to scrape per neighborhood on Immoscout.
     """
+    if neighborhoods is None:
+        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
 
     # Convert string date to datetime.date if provided
     move_in_date: Optional[date] = None
@@ -106,14 +93,8 @@ def main(
     output_json.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_json, "w", encoding="utf-8") as f:
-        json_data = [
-            apt.model_dump(mode="json") for apt in filtered
-        ]  # This works fine with Pydantic + date
-        import json
-
-        json.dump(
-            json_data, f, indent=2, ensure_ascii=False, default=str
-        )  # fallback for any edge cases
+        json_data = [apt.model_dump(mode="json") for apt in filtered]
+        json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
 
     logger.info(f"💾 Saved to {output_json}")
 
@@ -151,6 +132,49 @@ def main(
         console.print(table)
     else:
         console.print("[yellow]No matches found with current filters.[/yellow]")
+
+
+@app.command()
+def main(
+    price_min: int = typer.Option(
+        1700, "--min", "-m", help="Minimum monthly rent in CHF"
+    ),
+    price_max: int = typer.Option(
+        3000, "--max", "-M", help="Maximum monthly rent in CHF"
+    ),
+    move_in_from: Optional[str] = typer.Option(
+        None, "--move-in", "-d", help="Earliest move-in date (YYYY-MM-DD)"
+    ),
+    neighborhoods: List[str] = typer.Option(
+        ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"],
+        "--neigh",
+        "-n",
+        help="Neighborhoods to search (space-separated)",
+    ),
+    only_flexible: bool = typer.Option(
+        True,
+        "--flexible/--all",
+        help="Show only month-to-month friendly listings (recommended)",
+    ),
+    output_json: Path = typer.Option(
+        "results/latest.json", "--json", "-j", help="Path to save JSON results"
+    ),
+    export_csv: bool = typer.Option(False, "--csv", help="Also export as CSV"),
+    max_pages: int = typer.Option(
+        5, "--pages", help="Max pages per neighborhood on Immoscout"
+    ),
+) -> None:
+    """Typer CLI wrapper for the main function."""
+    _main_impl(
+        price_min=price_min,
+        price_max=price_max,
+        move_in_from=move_in_from,
+        neighborhoods=neighborhoods,
+        only_flexible=only_flexible,
+        output_json=output_json,
+        export_csv=export_csv,
+        max_pages=max_pages,
+    )
 
 
 # For direct execution (python -m src.aggregator.main)
