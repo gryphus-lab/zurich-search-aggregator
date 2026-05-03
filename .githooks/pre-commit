@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+
+# Create temporary file to store NUL-delimited Python file list
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+
+# Get staged Python files (NUL-delimited to handle spaces/special chars)
+git diff -z --cached --name-only --diff-filter=ACMR | grep -z '\.py$' > "$tmp" || true
+
+# Exit if no Python files are staged
+if [ ! -s "$tmp" ]; then
+    exit 0
+fi
+
+echo "pre-commit: formatting and fixing staged Python files with Ruff"
+
+# Run ruff check --fix and capture exit status
+set +e
+xargs -0 ruff check --fix < "$tmp"
+ruff_exit=$?
+set -e
+
+# Always run format and re-stage, regardless of ruff_exit
+xargs -0 ruff format < "$tmp"
+xargs -0 git add < "$tmp"
+
+# Exit with ruff's exit status
+exit $ruff_exit

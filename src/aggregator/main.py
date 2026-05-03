@@ -52,18 +52,15 @@ def main(
     ),
 ):
     """
-    Run the CLI search for furnished, short-term (month-to-month friendly) apartments in specified Zurich neighborhoods, apply filters and deduplication, save results to JSON (and optionally CSV), and print a summary table.
-    
+    Run the CLI search for short-term, furnished apartments in specified Zurich neighborhoods and present/save filtered results.
+
+    Filters listings by price, move-in date, neighborhoods and month-to-month friendliness, deduplicates results, writes JSON to the provided path (creating parent directories), optionally exports a CSV, and prints a summary table to the console.
+
     Parameters:
-        price_min (int): Minimum monthly rent in CHF.
-        price_max (int): Maximum monthly rent in CHF.
-        move_in_from (Optional[str]): Earliest move-in date as `YYYY-MM-DD`. If provided and invalid, exits with code 1.
-        neighborhoods (List[str]): Space-separated list of neighborhoods to search.
-        only_flexible (bool): When true, restrict results to month-to-month friendly listings.
-        output_json (Path): Path to write JSON results; parent directories will be created if needed.
-        export_csv (bool): When true, also export results to a CSV file alongside the JSON.
+        move_in_from (Optional[str]): Earliest move-in date in `YYYY-MM-DD` format; if provided and invalid, the command exits with code 1.
+        output_json (Path): File path to write JSON results; parent directories will be created if necessary.
+        export_csv (bool): If true, also write a CSV file alongside the JSON.
         max_pages (int): Maximum pages to scrape per neighborhood on Immoscout.
-    
     """
 
     # Convert string date to datetime.date if provided

@@ -69,25 +69,19 @@
   ],
   "connections": {
     "Daily Schedule": {
-      "main": [
-        [{"node": "Execute Scraper", "type": "main", "index": 0}]
-      ]
+      "main": [[{ "node": "Execute Scraper", "type": "main", "index": 0 }]]
     },
     "Execute Scraper": {
-      "main": [
-        [{"node": "Read Results JSON", "type": "main", "index": 0}]
-      ]
+      "main": [[{ "node": "Read Results JSON", "type": "main", "index": 0 }]]
     },
     "Read Results JSON": {
-      "main": [
-        [{"node": "Filter Good Matches", "type": "main", "index": 0}]
-      ]
+      "main": [[{ "node": "Filter Good Matches", "type": "main", "index": 0 }]]
     },
     "Filter Good Matches": {
       "main": [
         [
-          {"node": "Save to Google Sheets", "type": "main", "index": 0},
-          {"node": "Telegram Notification", "type": "main", "index": 0}
+          { "node": "Save to Google Sheets", "type": "main", "index": 0 },
+          { "node": "Telegram Notification", "type": "main", "index": 0 }
         ]
       ]
     }

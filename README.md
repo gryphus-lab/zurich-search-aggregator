@@ -5,7 +5,7 @@ Results are written to JSON (and optionally CSV).
 
 ## What it does
 
-- Scrapes listings from supported sources (e.g. `flatfox.ch`,  `theblueground.com`).
+- Scrapes listings from supported sources (e.g. `flatfox.ch`, `theblueground.com`).
 - Filters by:
   - price range (CHF/month)
   - neighborhood(s)
@@ -33,6 +33,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python -m playwright install chromium
+git config core.hooksPath .githooks
 ```
 
 ### Run

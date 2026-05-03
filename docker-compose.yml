@@ -16,15 +16,23 @@ services:
       - TZ=Europe/Zurich
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=change_this_to_a_strong_password
-      - N8N_ENCRYPTION_KEY=your_super_secret_encryption_key_here   # Generate a strong one
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:?missing N8N_BASIC_AUTH_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:?missing N8N_ENCRYPTION_KEY}
       - N8N_RESTRICT_FILE_ACCESS_TO=/files,/app/results
     volumes:
       - ./n8n_data:/home/node/.n8n
       - ./:/app
       - ./results:/app/results
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:5678/healthz",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
