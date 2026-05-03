@@ -1,5 +1,4 @@
 #!/usr/bin/env sh
-set -e
 
 # Create temporary file to store NUL-delimited Python file list
 tmp=$(mktemp)
@@ -15,9 +14,15 @@ fi
 
 echo "pre-commit: formatting and fixing staged Python files with Ruff"
 
-# Run ruff format and ruff check (fixing issues)
+# Run ruff check --fix and capture exit status
+set +e
 xargs -0 ruff check --fix < "$tmp"
-xargs -0 ruff format < "$tmp"
+ruff_exit=$?
+set -e
 
-# Re-stage the modified files
+# Always run format and re-stage, regardless of ruff_exit
+xargs -0 ruff format < "$tmp"
 xargs -0 git add < "$tmp"
+
+# Exit with ruff's exit status
+exit $ruff_exit

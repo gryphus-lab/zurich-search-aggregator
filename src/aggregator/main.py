@@ -53,9 +53,9 @@ def main(
 ):
     """
     Run the CLI search for short-term, furnished apartments in specified Zurich neighborhoods and present/save filtered results.
-    
+
     Filters listings by price, move-in date, neighborhoods and month-to-month friendliness, deduplicates results, writes JSON to the provided path (creating parent directories), optionally exports a CSV, and prints a summary table to the console.
-    
+
     Parameters:
         move_in_from (Optional[str]): Earliest move-in date in `YYYY-MM-DD` format; if provided and invalid, the command exits with code 1.
         output_json (Path): File path to write JSON results; parent directories will be created if necessary.
