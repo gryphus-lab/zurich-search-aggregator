@@ -12,6 +12,7 @@ wheels/
 .idea
 results/
 n8n_data/
+.vscode
 
 .coverage
 coverage.xml
