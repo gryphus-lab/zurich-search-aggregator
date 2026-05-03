@@ -373,3 +373,132 @@ def test_parse_flatfox_card_no_room_pattern_uses_neighborhood_title():
 
     assert listing is not None
     assert listing.title == "Apartment in Oerlikon"
+
+
+# ---------------------------------------------------------------------------
+# Additional regression tests for parse_blueground_card rejection logic
+# (the multiline if-condition reformatted in this PR)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_blueground_card_no_link_does_not_reject_even_if_date_earlier():
+    """
+    The rejection condition requires BOTH move_in_from AND link to be set.
+    Without a link, a listing with an earlier available_from must still be returned.
+    """
+    # available_from (May 2026) < move_in_from (Jun 2026), but no link provided
+    text = "CHF 2100\n#20 • Oerlikon\nAvailable 1 May 2026\n40 m²"
+
+    listing = parse_blueground_card(
+        text=text,
+        neighborhood="Oerlikon",
+        move_in_from=date(2026, 6, 1),
+        # link=None (omitted) — rejection should NOT trigger
+    )
+
+    # Should not be rejected because link is absent
+    assert listing is not None
+
+
+def test_parse_blueground_card_date_equal_to_move_in_is_not_rejected():
+    """
+    The rejection condition uses strict less-than (<).
+    A listing whose available_from equals move_in_from must NOT be filtered out.
+    """
+    move_in = date(2026, 6, 1)
+    text = "CHF 2200\n#30 • Seebach\nAvailable 1 Jun 2026\n50 m²"
+    link = "https://www.theblueground.com/.../listing/30"
+
+    listing = parse_blueground_card(
+        text=text,
+        neighborhood="Seebach",
+        move_in_from=move_in,
+        link=link,
+    )
+
+    assert listing is not None
+    assert listing.available_from == move_in
+
+
+def test_parse_blueground_card_date_after_move_in_is_not_rejected():
+    """
+    A listing available after move_in_from must not be rejected.
+    """
+    move_in = date(2026, 6, 1)
+    text = "CHF 2300\n#40 • Wipkingen\nAvailable 1 Aug 2026\n60 m²"
+    link = "https://www.theblueground.com/.../listing/40"
+
+    listing = parse_blueground_card(
+        text=text,
+        neighborhood="Wipkingen",
+        move_in_from=move_in,
+        link=link,
+    )
+
+    assert listing is not None
+
+
+def test_parse_blueground_card_no_available_date_in_text_not_rejected():
+    """
+    If the card text has no 'Available' date, parsed_available_from is None,
+    so the rejection guard must not fire (condition requires all four truthy).
+    """
+    text = "CHF 2400\n#50 • Altstetten\n55 m² furnished"
+    link = "https://www.theblueground.com/.../listing/50"
+
+    listing = parse_blueground_card(
+        text=text,
+        neighborhood="Altstetten",
+        move_in_from=date(2026, 6, 1),
+        link=link,
+    )
+
+    assert listing is not None
+
+
+def test_parse_blueground_card_available_from_uses_move_in_when_provided():
+    """
+    When move_in_from is provided and the listing is not rejected,
+    the returned listing's available_from must equal move_in_from (not the parsed date).
+    """
+    move_in = date(2026, 8, 1)
+    text = "CHF 2500\n#60 • Oerlikon\nAvailable 1 Sep 2026\n45 m²"
+    link = "https://www.theblueground.com/.../listing/60"
+
+    listing = parse_blueground_card(
+        text=text,
+        neighborhood="Oerlikon",
+        move_in_from=move_in,
+        link=link,
+    )
+
+    assert listing is not None
+    assert listing.available_from == move_in
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases for get_checkout_one_year_later
+# ---------------------------------------------------------------------------
+
+
+def test_get_checkout_one_year_later_february_input():
+    """2026-02-28 → last day of January the following year (2027-01-31)."""
+    result = get_checkout_one_year_later(date(2026, 2, 28))
+    assert result == date(2027, 1, 31)
+
+
+def test_get_checkout_one_year_later_year_increments():
+    """The year in the result must always be start_date.year + 1."""
+    result = get_checkout_one_year_later(date(2025, 7, 15))
+    assert result.year == 2026
+
+
+def test_get_checkout_one_year_later_last_day_of_preceding_month():
+    """Result day must be the last valid day of the preceding month."""
+    from calendar import monthrange
+
+    start = date(2026, 8, 10)
+    result = get_checkout_one_year_later(start)
+    expected_month = 7  # August - 1
+    _, expected_last = monthrange(2027, expected_month)
+    assert result == date(2027, expected_month, expected_last)

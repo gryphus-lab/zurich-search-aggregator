@@ -410,3 +410,159 @@ def test_generate_unique_id_differs_for_different_links():
         link="https://example.com/y", price_chf=2000.0, neighborhood="Oerlikon"
     )
     assert generate_unique_id(a) != generate_unique_id(b)
+
+
+# ---------------------------------------------------------------------------
+# Additional edge-case tests for normalize_neighborhood (multiline key chain)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_neighborhood_with_leading_and_trailing_spaces():
+    """strip() in key chain should handle surrounding whitespace."""
+    assert normalize_neighborhood("  oerlikon  ") == "Oerlikon"
+    assert normalize_neighborhood("  Seebach  ") == "Seebach"
+
+
+def test_normalize_neighborhood_quartier_with_dash_not_mapped():
+    """'quartier-oerlikon' (dash, not space) goes through replace(' ','-') first,
+    producing 'quartier-oerlikon', then replace('quartier-','') gives 'oerlikon'."""
+    # "quartier-oerlikon" -> lower -> "quartier-oerlikon"
+    # -> replace(" ","-") -> "quartier-oerlikon" (no spaces to replace)
+    # -> replace("quartier-","") -> "oerlikon"
+    # -> maps to "Oerlikon"
+    assert normalize_neighborhood("quartier-oerlikon") == "Oerlikon"
+
+
+def test_normalize_neighborhood_seebach_zuerich_variant():
+    """'seebach zürich' should normalise via key chain to 'seebach' then title-case."""
+    # "seebach zürich" -> lower -> "seebach zürich"
+    # -> replace(" ","-") -> "seebach-zürich"
+    # -> replace("zürich","") -> "seebach-"
+    # -> rstrip("-") -> "seebach"
+    # -> maps to "Seebach"
+    assert normalize_neighborhood("seebach zürich") == "Seebach"
+
+
+def test_normalize_neighborhood_uppercase_input_returns_canonical():
+    """All-uppercase neighborhood name should still map to canonical form."""
+    assert normalize_neighborhood("OERLIKON") == "Oerlikon"
+    assert normalize_neighborhood("WIPKINGEN") == "Wipkingen"
+
+
+def test_normalize_neighborhood_mixed_case_quartier_prefix():
+    """Mixed-case 'Quartier Oerlikon' should normalise correctly."""
+    # lower -> "quartier oerlikon" -> replace(" ","-") -> "quartier-oerlikon"
+    # -> replace("quartier-","") -> "oerlikon" -> maps to "Oerlikon"
+    assert normalize_neighborhood("Quartier Oerlikon") == "Oerlikon"
+
+
+# ---------------------------------------------------------------------------
+# Additional edge-case tests for generate_unique_id (price rounding)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_unique_id_rounds_fractional_price_to_same_bucket():
+    """Prices that round to the same integer produce the same ID (:.0f formatting)."""
+    # 2000.0 and 2000.49 both format to "2000" with :.0f
+    a = make_listing(
+        link="https://example.com/r", price_chf=2000.0, neighborhood="Oerlikon"
+    )
+    b = make_listing(
+        link="https://example.com/r", price_chf=2000.49, neighborhood="Oerlikon"
+    )
+    assert generate_unique_id(a) == generate_unique_id(b)
+
+
+def test_generate_unique_id_result_is_hex_string():
+    """The returned ID should be a valid lowercase hexadecimal string."""
+    listing = make_listing(
+        link="https://example.com/hex", price_chf=2000.0, neighborhood="Oerlikon"
+    )
+    uid = generate_unique_id(listing)
+    assert all(c in "0123456789abcdef" for c in uid)
+
+
+# ---------------------------------------------------------------------------
+# Additional regression tests for apply_filters annotation behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_apply_filters_flexible_listing_gets_flexible_prefix():
+    """A flexible listing must be prefixed with [FLEXIBLE] even when only_month_to_month=False."""
+    listing = make_listing(
+        link="https://example.com/fl",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        description_snippet="furnished sublet apartment",
+    )
+    filtered = apply_filters(
+        listings=[listing],
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        only_month_to_month=False,
+    )
+    assert len(filtered) == 1
+    assert filtered[0].description_snippet.startswith("[FLEXIBLE]")
+
+
+def test_apply_filters_standard_listing_retained_when_only_month_to_month_false():
+    """With only_month_to_month=False, non-flexible listings are kept and annotated [STANDARD]."""
+    listing = make_listing(
+        link="https://example.com/st",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        description_snippet="annual lease contract",
+    )
+    filtered = apply_filters(
+        listings=[listing],
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        only_month_to_month=False,
+    )
+    assert len(filtered) == 1
+    assert filtered[0].description_snippet.startswith("[STANDARD]")
+
+
+def test_apply_filters_exact_move_in_date_is_kept():
+    """A listing whose available_from equals move_in_from should NOT be excluded."""
+    listing = make_listing(
+        link="https://example.com/exact",
+        price_chf=2000,
+        neighborhood="Oerlikon",
+        available_from=date(2026, 6, 1),
+        description_snippet="month to month",
+    )
+    filtered = apply_filters(
+        listings=[listing],
+        price_min=1700,
+        price_max=3000,
+        move_in_from=date(2026, 6, 1),
+        neighborhoods=["Oerlikon"],
+    )
+    assert len(filtered) == 1
+
+
+def test_apply_filters_duplicate_deduplication_keeps_first():
+    """When two listings produce the same unique ID, only the first is kept."""
+    first = make_listing(
+        link="https://example.com/dup2",
+        price_chf=2500.0,
+        neighborhood="Seebach",
+        description_snippet="furnished",
+    )
+    second = make_listing(
+        link="https://example.com/dup2",
+        price_chf=2500.0,
+        neighborhood="Seebach",
+        description_snippet="furnished again",
+    )
+    filtered = apply_filters(
+        listings=[first, second],
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Seebach"],
+        only_month_to_month=False,
+    )
+    assert len(filtered) == 1
