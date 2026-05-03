@@ -10,6 +10,7 @@ from ..logger import logger
 
 BLUEGROUND_TITLE = "Blueground Apartment"
 
+
 def get_checkout_one_year_later(start_date: date) -> date:
     """
     Computes the checkout date one year after `start_date`, using the last day of the month immediately before `start_date.month` in the following year.

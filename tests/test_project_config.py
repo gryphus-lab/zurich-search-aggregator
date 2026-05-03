@@ -115,7 +115,9 @@ def test_pyproject_dep_beautifulsoup4_version():
 def test_pyproject_dep_pydantic_version():
     data = load_pyproject()
     deps = data["project"]["dependencies"]
-    pydantic = next((d for d in deps if d.startswith("pydantic") and "core" not in d), None)
+    pydantic = next(
+        (d for d in deps if d.startswith("pydantic") and "core" not in d), None
+    )
     assert pydantic is not None
     assert "2.13.3" in pydantic
 
@@ -343,7 +345,9 @@ def test_mise_scrape_task_uses_uv_run():
     data = load_mise()
     cmd = data["tasks"]["scrape"]["run"]
     assert isinstance(cmd, str)
-    assert cmd.startswith("uv run "), f"'scrape' task must use 'uv run' prefix, got: {cmd}"
+    assert cmd.startswith("uv run "), (
+        f"'scrape' task must use 'uv run' prefix, got: {cmd}"
+    )
 
 
 def test_mise_lint_task_uses_uv_run_for_ruff():
@@ -378,7 +382,9 @@ def test_mise_test_task_uses_uv_run():
     data = load_mise()
     cmd = data["tasks"]["test"]["run"]
     assert isinstance(cmd, str)
-    assert cmd.startswith("uv run "), f"'test' task must use 'uv run' prefix, got: {cmd}"
+    assert cmd.startswith("uv run "), (
+        f"'test' task must use 'uv run' prefix, got: {cmd}"
+    )
 
 
 def test_mise_test_task_targets_tests_directory():
@@ -399,7 +405,9 @@ def test_mise_coverage_task_uses_uv_run():
     data = load_mise()
     cmd = data["tasks"]["coverage"]["run"]
     assert isinstance(cmd, str)
-    assert cmd.startswith("uv run "), f"'coverage' task must use 'uv run' prefix, got: {cmd}"
+    assert cmd.startswith("uv run "), (
+        f"'coverage' task must use 'uv run' prefix, got: {cmd}"
+    )
 
 
 def test_mise_test_task_does_not_use_bare_pytest():
@@ -444,9 +452,7 @@ def test_mise_info_task_shows_python_version():
     """Info task was updated to show python --version instead of $VIRTUAL_ENV."""
     data = load_mise()
     cmd = data["tasks"]["info"]["run"]
-    assert "python --version" in cmd, (
-        "info task should show python version"
-    )
+    assert "python --version" in cmd, "info task should show python version"
 
 
 def test_mise_info_task_does_not_show_virtual_env():
@@ -488,7 +494,9 @@ def test_uv_lock_version_header():
     """uv.lock must start with 'version = 1'."""
     content = UV_LOCK_PATH.read_text()
     first_line = content.splitlines()[0].strip()
-    assert first_line == "version = 1", f"uv.lock version header is unexpected: {first_line}"
+    assert first_line == "version = 1", (
+        f"uv.lock version header is unexpected: {first_line}"
+    )
 
 
 def test_uv_lock_python_requirement():
@@ -513,9 +521,7 @@ def test_uv_lock_contains_key_packages():
         "typer",
     ]
     for pkg in key_packages:
-        assert f'name = "{pkg}"' in content, (
-            f"uv.lock must contain package '{pkg}'"
-        )
+        assert f'name = "{pkg}"' in content, f"uv.lock must contain package '{pkg}'"
 
 
 def test_uv_lock_contains_dev_packages():
@@ -523,9 +529,7 @@ def test_uv_lock_contains_dev_packages():
     content = UV_LOCK_PATH.read_text()
     dev_packages = ["pytest", "ruff", "coverage"]
     for pkg in dev_packages:
-        assert f'name = "{pkg}"' in content, (
-            f"uv.lock must contain dev package '{pkg}'"
-        )
+        assert f'name = "{pkg}"' in content, f"uv.lock must contain dev package '{pkg}'"
 
 
 def test_uv_lock_has_revision():
@@ -578,5 +582,7 @@ def test_ruff_only_in_dev_not_as_mise_tool():
 
 def test_no_requirements_txt_and_uv_lock_present():
     """After migration: requirements.txt gone, uv.lock present."""
-    assert not REQUIREMENTS_PATH.exists(), "requirements.txt must not exist after uv migration"
+    assert not REQUIREMENTS_PATH.exists(), (
+        "requirements.txt must not exist after uv migration"
+    )
     assert UV_LOCK_PATH.exists(), "uv.lock must exist after uv migration"
