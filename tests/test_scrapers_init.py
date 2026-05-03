@@ -19,6 +19,17 @@ from src.aggregator.scrapers import run_all_scrapers
 
 
 def _make_listing(source: str, link: str, price: float = 2000.0) -> ApartmentListing:
+    """
+    Create a test ApartmentListing with the given source, link, and price.
+    
+    Parameters:
+        source (str): Origin identifier for the listing (e.g., "flatfox", "blueground").
+        link (str): URL or path for the listing; the listing's `id` is taken from the last path segment of this value.
+        price (float): Price in CHF to set on the listing (default 2000.0).
+    
+    Returns:
+        ApartmentListing: An ApartmentListing populated with the provided `source`, `link`, and `price_chf`, and with fixed `title` ("Test flat") and `neighborhood` ("Oerlikon").
+    """
     return ApartmentListing(
         id=link.split("/")[-1],
         title="Test flat",
@@ -57,6 +68,11 @@ def test_run_all_scrapers_combines_both_sources(mock_flatfox, mock_blueground):
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
 def test_run_all_scrapers_passes_parameters_to_flatfox(mock_flatfox, mock_blueground):
+    """
+    Verifies that run_all_scrapers forwards the price range, neighborhoods, move-in date, and max_pages parameters to the Flatfox scraper.
+    
+    Calls run_all_scrapers with specific filters and asserts scrape_flatfox is invoked exactly once with those same arguments.
+    """
     mock_flatfox.return_value = []
     mock_blueground.return_value = []
 
@@ -173,7 +189,9 @@ def test_run_all_scrapers_continues_if_both_scrapers_raise(mock_flatfox, mock_bl
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
 def test_run_all_scrapers_preserves_listing_order(mock_flatfox, mock_blueground):
-    """Flatfox listings should appear before Blueground listings."""
+    """
+    Verify that listings from Flatfox appear before those from Blueground, preserving the order within each source.
+    """
     ff1 = _make_listing("flatfox", "https://flatfox.ch/flat/a", price=2100.0)
     ff2 = _make_listing("flatfox", "https://flatfox.ch/flat/b", price=2200.0)
     bg1 = _make_listing("blueground", "https://theblueground.com/p/c", price=2300.0)

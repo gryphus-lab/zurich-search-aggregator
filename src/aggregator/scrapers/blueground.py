@@ -10,7 +10,15 @@ from ..logger import logger
 
 
 def get_checkout_one_year_later(start_date: date) -> date:
-    """2026-05-01 → 2027-04-30"""
+    """
+    Compute a checkout date one year after `start_date`, adjusted to the last day of the month that precedes the original month in the following year.
+    
+    Parameters:
+        start_date (date): The reference start date.
+    
+    Returns:
+        date: The date corresponding to the last day of the month immediately before `start_date.month` in the year `start_date.year + 1`. For example, 2026-05-01 -> 2027-04-30.
+    """
     next_year = start_date.year + 1
     next_month = start_date.month - 1 if start_date.month > 1 else 12
 
@@ -20,6 +28,23 @@ def get_checkout_one_year_later(start_date: date) -> date:
 
 
 def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
+    """
+    Parse an "available from" string into a date.
+    
+    Strips a leading "Available" (case-insensitive) and attempts to parse the remaining text using several common date formats.
+    
+    Parameters:
+        avail_str (Optional[str]): Input string possibly prefixed with "Available" and containing a date (e.g. "Available 1 Jan 2024").
+    
+    Returns:
+        Optional[date]: The parsed `date` if parsing succeeds, `None` if the input is falsy or no supported format matches.
+    
+    Accepted date formats:
+        - "%d %b %Y" (e.g. "1 Jan 2024")
+        - "%b %d %Y" (e.g. "Jan 1 2024")
+        - "%d %B %Y" (e.g. "1 January 2024")
+        - "%d.%m.%Y" (e.g. "01.01.2024")
+    """
     if not avail_str:
         return None
     avail_str = re.sub(r"Available\s*", "", avail_str, flags=re.I).strip()
@@ -37,6 +62,19 @@ def parse_blueground_card(
     neighborhood: str,
     move_in_from: Optional[date] = None,
 ) -> Optional[ApartmentListing]:
+    """
+    Parse a Blueground listing card's raw text and construct an ApartmentListing populated with extracted fields.
+    
+    Parameters:
+        text (str): Raw inner-text of the card element to parse.
+        neighborhood (str): Neighborhood used as a fallback for address when one cannot be extracted.
+        move_in_from (Optional[date]): Optional move-in date to set as the listing's `available_from`.
+    
+    Returns:
+        Optional[ApartmentListing]: An ApartmentListing populated with id, title, address, price_chf, neighborhood,
+        link, available_from, size_m2, rooms (None), source ("blueground"), furnished (True), a short description_snippet,
+        and raw_data. Returns `None` only if a listing cannot be produced from the provided text.
+    """
     text = (text or "").strip()
 
     title_match = re.search(r"#(\d+)\s*•\s*(\S.*$)", text)
@@ -93,6 +131,18 @@ def scrape_blueground(
     neighborhoods: List[str] = None,
     move_in_from: Optional[date] = None,
 ) -> List[ApartmentListing]:
+    """
+    Scrape apartment listings from Blueground for the given neighborhoods and optional move-in date.
+    
+    Parameters:
+        price_min (int): Minimum price shown in logs; not used to filter results.
+        price_max (int): Maximum price shown in logs; not used to filter results.
+        neighborhoods (List[str] | None): List of neighborhood names to scrape. Defaults to a predefined set when None.
+        move_in_from (date | None): Optional move-in date used to request availability date range on the site.
+    
+    Returns:
+        List[ApartmentListing]: Collected apartment listings parsed from Blueground cards.
+    """
     if neighborhoods is None:
         neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
 

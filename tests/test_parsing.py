@@ -197,7 +197,9 @@ def test_parse_blueground_card_with_price_extracts_price():
 
 
 def test_parse_blueground_card_link_derived_from_title():
-    """The listing link is built from the apartment number in the title."""
+    """
+    Verify that the listing link is derived from the apartment number found in the title.
+    """
     text = "CHF 2300\n#7 • Wipkingen\n60 m²"
 
     listing = parse_blueground_card(text=text, neighborhood="Wipkingen")

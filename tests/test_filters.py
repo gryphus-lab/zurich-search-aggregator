@@ -17,6 +17,28 @@ def make_listing(
     description_snippet: str | None = None,
     available_from: date | None = None,
 ) -> ApartmentListing:
+    """
+    Create a test ApartmentListing populated with sensible defaults for unit tests.
+    
+    Parameters:
+        link (str): Listing URL; the listing `id` is derived from the last path segment of this value, or `"id"` if that segment is empty.
+        price_chf (float): Price in Swiss francs to set on the listing.
+        neighborhood (str): Neighborhood name to set on the listing.
+        description_snippet (str | None): Optional short description/snippet for the listing.
+        available_from (date | None): Optional move-in date for the listing.
+    
+    Returns:
+        ApartmentListing: An instance with:
+            - id: derived from `link` as described above
+            - title: `"Test listing"`
+            - price_chf, neighborhood, link, description_snippet, available_from: set from parameters
+            - address: None
+            - size_m2: None
+            - rooms: None
+            - source: `"test"`
+            - furnished: True
+            - raw_data: empty dict
+    """
     return ApartmentListing(
         id=link.rsplit("/", 1)[-1] or "id",
         title="Test listing",

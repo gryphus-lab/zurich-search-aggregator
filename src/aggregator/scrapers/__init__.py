@@ -14,6 +14,19 @@ def run_all_scrapers(
     move_in_from: Optional[date] = None,
     max_pages: int = 5,
 ) -> List[ApartmentListing]:
+    """
+    Aggregate apartment listings collected from all active scrapers using the given filters.
+    
+    Parameters:
+        price_min (int): Minimum price filter.
+        price_max (int): Maximum price filter.
+        neighborhoods (List[str]): Neighborhood names or identifiers to filter listings.
+        move_in_from (Optional[date]): Earliest acceptable move-in date; if None, no move-in date filter is applied.
+        max_pages (int): Maximum pages to fetch for scrapers that support pagination (applies to Flatfox).
+    
+    Returns:
+        List[ApartmentListing]: Combined listings returned by scrapers that completed successfully.
+    """
     logger.info("Run all active scrapers with parameters:s")
     all_listings: List[ApartmentListing] = []
 

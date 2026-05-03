@@ -7,7 +7,15 @@ from src.aggregator.models import ApartmentListing
 
 
 def _minimal(**overrides) -> dict:
-    """Return a minimal valid set of keyword arguments for ApartmentListing."""
+    """
+    Build a minimal mapping of keyword arguments suitable for constructing an ApartmentListing.
+    
+    Parameters:
+        **overrides: Any keyword arguments to override the default fields.
+    
+    Returns:
+        A dict containing the default ApartmentListing fields (`id`, `title`, `price_chf`, `neighborhood`, `link`, `source`) with any provided `overrides` applied.
+    """
     base = {
         "id": "abc123",
         "title": "Cosy 2-room flat",
@@ -78,7 +86,11 @@ def test_apartment_listing_accepts_all_optional_fields():
 
 
 def test_apartment_listing_raw_data_is_independent_per_instance():
-    """Ensure default_factory gives each instance its own dict."""
+    """
+    Ensure each ApartmentListing instance receives a distinct default `raw_data` dictionary.
+    
+    Verifies that modifying one instance's `raw_data` does not affect another instance's `raw_data`.
+    """
     a = ApartmentListing(**_minimal())
     b = ApartmentListing(**_minimal(id="other"))
     a.raw_data["key"] = "value"
