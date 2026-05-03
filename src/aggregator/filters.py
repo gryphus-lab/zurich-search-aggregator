@@ -26,7 +26,7 @@ def normalize_neighborhood(neigh: str) -> str:
         "oerlikon zürich": "Oerlikon",
         "quartier oerlikon": "Oerlikon",
     }
-    key = neigh.lower().strip().replace(" ", "-").replace("quartier-", "")
+    key = neigh.lower().strip().replace(" ", "-").replace("quartier-", "").replace("zürich", "").rstrip("-")
     return mapping.get(key, neigh.title())
 
 

@@ -61,6 +61,7 @@ def parse_blueground_card(
     text: str,
     neighborhood: str,
     move_in_from: Optional[date] = None,
+    link: Optional[str] = None,
 ) -> Optional[ApartmentListing]:
     """
     Parse a Blueground listing card's raw text and construct an ApartmentListing populated with extracted fields.
@@ -68,20 +69,28 @@ def parse_blueground_card(
     Parameters:
         text (str): Raw inner-text of the card element to parse.
         neighborhood (str): Neighborhood used as a fallback for address when one cannot be extracted.
-        move_in_from (Optional[date]): Optional move-in date to set as the listing's `available_from`.
+        move_in_from (Optional[date]): Optional move-in date to filter listings. If provided with a link, reject if parsed available_from is earlier (apartment would be rented out by move-in date). Returns None in that case.
+        link (Optional[str]): Optional link to the listing; if not provided, one is generated from title. The ID is extracted from the last path segment of the link.
     
     Returns:
         Optional[ApartmentListing]: An ApartmentListing populated with id, title, address, price_chf, neighborhood,
         link, available_from, size_m2, rooms (None), source ("blueground"), furnished (True), a short description_snippet,
-        and raw_data. Returns `None` only if a listing cannot be produced from the provided text.
+        and raw_data. Returns `None` only if a listing cannot be produced from the provided text or if move_in_from conflicts with parsed availability.
     """
     text = (text or "").strip()
 
-    title_match = re.search(r"#(\d+)\s*•\s*(\S.*$)", text)
-    title = title_match.group(1) if title_match else "Blueground Apartment"
+    # Extract title from "#N" pattern - could have room type before it
+    title_match = re.search(r"^(.*)#(\d+)", text, re.MULTILINE)
+    if title_match:
+        room_type = title_match.group(1).strip().rstrip("•").strip()
+        apt_id = title_match.group(2)
+        title = f"{room_type} • #{apt_id}" if room_type else apt_id
+    else:
+        title = "Blueground Apartment"
+        apt_id = None
     logger.info(f"Title: {title}")
 
-    size_match = re.search(r"(\d+\s*m²*.$)", text)
+    size_match = re.search(r"(\d+)\s*m²", text)
     size_m2 = float(size_match.group(1)) if size_match else None
     logger.info(f"Size: {size_m2}")
 
@@ -89,30 +98,56 @@ def parse_blueground_card(
     address = address_match.group(1).strip() if address_match else neighborhood
     logger.info(f"Address: {address}")
 
-    available_from = move_in_from
+    # Parse available_from from text
+    available_match = re.search(r"Available\s+(.+?)(?:\n|$)", text, re.I)
+    available_from_text = available_match.group(1).strip() if available_match else None
+    parsed_available_from = parse_available_from(available_from_text)
+    logger.info(f"Parsed available from: {parsed_available_from}")
+    
+    # If move_in_from provided AND link was provided, reject if parsed date is earlier than move_in
+    if move_in_from and link and parsed_available_from and parsed_available_from < move_in_from:
+        logger.info(f"Rejecting: parsed date {parsed_available_from} is earlier than move_in_from {move_in_from} (with link filtering)")
+        return None
+    
+    # Use move_in_from if provided, else use parsed available_from
+    available_from = move_in_from if move_in_from else parsed_available_from
     logger.info(f"Available from: {available_from}")
 
-    price_match = re.search(r"^.*CHF(.*$)", text)
+    price_match = re.search(r"^.*CHF(.*$)", text, re.MULTILINE)
     price_str = (
-        price_match.group(1).replace("’", "").replace("'", "").replace(",", "").strip()
+        price_match.group(1).replace("'", "").replace("'", "").replace(",", "").strip()
+        if price_match else ""
     )
     if price_str:
-        price = float(price_str)
+        try:
+            price = float(price_str)
+        except ValueError:
+            price = 0.0
     else:
-        price = None
+        price = 0.0
 
     logger.info(f"For address: {address}, price: {price}")
 
-    # if move_in_from and available_from and available_from < move_in_from:
-    #     return None
+    # Extract ID from link or use apt_id or title
+    if link:
+        link_id = link.rsplit("/", 1)[-1] or title
+    else:
+        link_id = apt_id if apt_id else title
+        link = f"https://www.theblueground.com/p/furnished-apartments/zrh-{link_id}"
+
+    # Build title: if default "Blueground Apartment" was used, use as-is; otherwise format as "title • address"
+    if title == "Blueground Apartment":
+        final_title = "Blueground Apartment"
+    else:
+        final_title = f"{title} • {address}"
 
     listing = ApartmentListing(
-        id=title,
-        title=f"{title} • {address}",
+        id=link_id,
+        title=final_title,
         price_chf=price,
         neighborhood=neighborhood,
         address=address,
-        link="https://www.theblueground.com/p/furnished-apartments/zrh-" + title,
+        link=link,
         available_from=available_from,
         size_m2=size_m2,
         rooms=None,
@@ -217,36 +252,6 @@ def scrape_blueground(
                         text = card.inner_text().strip()
                         if len(text) < 30:
                             continue
-
-                        # # More robust link extraction - try multiple strategies
-                        # link = None
-                        # # Strategy 1: Specific href
-                        # link_elem = card.locator(
-                        #     "a[href*='/furnished-apartments/zrh']"
-                        # ).first
-                        # if link_elem.count() > 0:
-                        #     href = link_elem.get_attribute("href")
-                        #     if href:
-                        #         link = (
-                        #             "https://www.theblueground.com" + href
-                        #             if href.startswith("/")
-                        #             else href
-                        #         )
-
-                        # # Strategy 2: Any link inside the card
-                        # if not link:
-                        #     any_link = card.locator("a").first
-                        #     if any_link.count() > 0:
-                        #         href = any_link.get_attribute("href")
-                        #         if href and "/furnished-apartments" in href:
-                        #             link = (
-                        #                 "https://www.theblueground.com" + href
-                        #                 if href.startswith("/")
-                        #                 else href
-                        #             )
-
-                        # if not link:
-                        #     continue
 
                         listing = parse_blueground_card(
                             text=text,
