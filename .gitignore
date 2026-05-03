@@ -12,3 +12,6 @@ wheels/
 .idea
 results/
 n8n_data/
+
+.coverage
+coverage.xml

@@ -31,10 +31,12 @@ echo "Virtual Environment: $VIRTUAL_ENV"
 [tasks.run]
 description = "Run the aggregator with default filters"
 run = "python -m src.aggregator.main"
+depends = ["bootstrap"]
 
 [tasks.scrape]
 description = "Run scrape with custom CLI arguments"
 run = "python -m src.aggregator.main"
+depends = ["bootstrap"]
 
 [tasks.lint]
 description = "Lint and check formatting with Ruff"
@@ -47,6 +49,12 @@ run = "ruff format . && ruff check --fix ."
 [tasks.test]
 description = "Run tests with pytest"
 run = "pytest"
+depends = ["bootstrap"]
+
+[tasks.coverage]
+description = "Run tests with coverage report"
+run = "pytest tests --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml"
+depends = ["bootstrap"]
 
 [tasks.docker-compose]
 description = "Start services with Docker Compose in detached mode"

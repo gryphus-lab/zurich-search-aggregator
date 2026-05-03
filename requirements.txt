@@ -1,5 +1,4 @@
 beautifulsoup4
-ruff
 filters
 httpx
 lxml
@@ -9,5 +8,7 @@ pydantic
 python-dateutil
 python-dotenv
 rich
-pytest
+pytest>=9.0.3
+pytest-cov>=7.1.0
+ruff>=0.15.11
 typer
