@@ -13,7 +13,7 @@ UV_PROJECT_ENVIRONMENT = ".venv"
 [settings]
 python.uv_venv_auto = "create|source"
 
-[tasks.install]
+[tasks.bootstrap]
 description = "Install dependencies and Playwright Chromium"
 alias = "i"
 run = [
