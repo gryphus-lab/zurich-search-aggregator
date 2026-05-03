@@ -1,0 +1,13 @@
+beautifulsoup4
+ruff
+filters
+httpx
+lxml
+pandas
+playwright
+pydantic
+python-dateutil
+python-dotenv
+rich
+pytest
+typer

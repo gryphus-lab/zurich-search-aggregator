@@ -1,0 +1,47 @@
+from .blueground import scrape_blueground
+from .flatfox import scrape_flatfox
+from typing import List, Optional
+from datetime import date
+
+from ..models import ApartmentListing
+from ..logger import logger  # standard logger
+
+
+def run_all_scrapers(
+    price_min: int,
+    price_max: int,
+    neighborhoods: List[str],
+    move_in_from: Optional[date] = None,
+    max_pages: int = 5,
+) -> List[ApartmentListing]:
+    logger.info("Run all active scrapers with parameters:s")
+    all_listings: List[ApartmentListing] = []
+
+    # Flatfox — great for temporary/furnished sublets
+    try:
+        flatfox_results = scrape_flatfox(
+            price_min=price_min,
+            price_max=price_max,
+            neighborhoods=neighborhoods,
+            move_in_from=move_in_from,
+            max_pages=max_pages,
+        )
+        all_listings.extend(flatfox_results)
+        logger.info(f"Flatfox → added {len(flatfox_results)} listings")
+    except Exception as e:
+        logger.error(f"Flatfox error: {e}")
+
+    # Blueground — excellent for serviced month-to-month
+    try:
+        blueground_results = scrape_blueground(
+            price_min=price_min,
+            price_max=price_max,
+            neighborhoods=neighborhoods,
+            move_in_from=move_in_from,
+        )
+        all_listings.extend(blueground_results)
+        logger.info(f"Blueground → added {len(blueground_results)} listings")
+    except Exception as e:
+        logger.error(f"Blueground error: {e}")
+
+    return all_listings
