@@ -11,13 +11,13 @@ from ..logger import logger
 
 def get_checkout_one_year_later(start_date: date) -> date:
     """
-    Compute a checkout date one year after `start_date`, adjusted to the last day of the month that precedes the original month in the following year.
-
+    Computes the checkout date one year after `start_date`, using the last day of the month immediately before `start_date.month` in the following year.
+    
     Parameters:
-        start_date (date): The reference start date.
-
+        start_date (date): Reference start date.
+    
     Returns:
-        date: The date corresponding to the last day of the month immediately before `start_date.month` in the year `start_date.year + 1`. For example, 2026-05-01 -> 2027-04-30.
+        date: Last day of the month preceding `start_date.month` in the year `start_date.year + 1` (e.g., 2026-05-01 -> 2027-04-30).
     """
     next_year = start_date.year + 1
     next_month = start_date.month - 1 if start_date.month > 1 else 12
