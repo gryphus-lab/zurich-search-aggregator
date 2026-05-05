@@ -157,7 +157,7 @@ def test_scrape_homegate_size_extracted(mock_sync_playwright):
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
 def test_scrape_homegate_available_from_parsed(mock_sync_playwright):
-    text = "CHF 2'100\n2 Zimmer\n55 m²\nOerlikon\nab 15.07.2026 some extra text here"
+    text = "CHF 2'100\n2 Zimmer\n55 m²\nOerlikon\nab 15.07.2026"
     href = "/en/rent/apartment/101"
 
     mock_sync_playwright.return_value = _make_playwright_mock(
@@ -300,7 +300,7 @@ def test_scrape_homegate_includes_price_at_exact_boundaries(mock_sync_playwright
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
 def test_scrape_homegate_move_in_filter_excludes_earlier_date(mock_sync_playwright):
     """A card whose available_from < move_in_from must be skipped."""
-    text = "CHF 2'000\n2 Zimmer\n50 m²\nOerlikon\nab 01.03.2026 nice apartment"
+    text = "CHF 2'000\n2 Zimmer\n50 m²\nOerlikon\nab 01.03.2026"
     href = "/en/rent/apartment/early"
 
     mock_sync_playwright.return_value = _make_playwright_mock(
@@ -321,7 +321,7 @@ def test_scrape_homegate_move_in_filter_excludes_earlier_date(mock_sync_playwrig
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
 def test_scrape_homegate_move_in_filter_keeps_equal_date(mock_sync_playwright):
     """available_from == move_in_from must NOT be excluded (strict less-than)."""
-    text = "CHF 2'000\n2 Zimmer\n50 m²\nOerlikon\nab 01.06.2026 nice apartment"
+    text = "CHF 2'000\n2 Zimmer\n50 m²\nOerlikon\nab 01.06.2026"
     href = "/en/rent/apartment/exact"
 
     mock_sync_playwright.return_value = _make_playwright_mock(

@@ -95,8 +95,8 @@ def test_scrape_ums_valid_card_returns_listing(mock_sync_playwright):
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")
-def test_scrape_ums_title_is_always_temporary_apartment(mock_sync_playwright):
-    """UMS listings always have 'Temporary Apartment' as title."""
+def test_scrape_ums_title_falls_back_to_first_line_of_text(mock_sync_playwright):
+    """When no room or size pattern is found, title is the first line of the card text."""
     text = "CHF 2'000\nNice place in Seebach available now today"
     href = "/listing/999"
 
@@ -111,7 +111,8 @@ def test_scrape_ums_title_is_always_temporary_apartment(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert result[0].title == "Temporary Apartment"
+    # Fallback title: text[:50].split("\n")[0] when no room/size match
+    assert result[0].title == "CHF 2'000"
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")
@@ -673,3 +674,175 @@ def test_scrape_ums_price_with_apostrophe_separator(mock_sync_playwright):
 
     assert len(result) == 1
     assert result[0].price_chf == 2500.0
+
+
+# ---------------------------------------------------------------------------
+# move_in_from filtering
+# ---------------------------------------------------------------------------
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_move_in_filter_excludes_earlier_date(mock_sync_playwright):
+    """A card whose available_from < move_in_from must be skipped."""
+    text = "CHF 2'000\nOerlikon apartment from 01.03.2026 available now"
+    href = "/listing/early-date"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        move_in_from=date(2026, 6, 1),
+    )
+
+    assert result == []
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_move_in_filter_keeps_equal_date(mock_sync_playwright):
+    """available_from == move_in_from must NOT be excluded (strict less-than comparison)."""
+    text = "CHF 2'000\nOerlikon apartment from 01.06.2026 available now"
+    href = "/listing/exact-date"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        move_in_from=date(2026, 6, 1),
+    )
+
+    assert len(result) == 1
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_move_in_filter_keeps_card_without_date(mock_sync_playwright):
+    """A card with no parseable available_from must not be excluded by move_in_from."""
+    text = "CHF 2'000\nOerlikon apartment available for rent no date given"
+    href = "/listing/no-date"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        move_in_from=date(2026, 6, 1),
+    )
+
+    assert len(result) == 1
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_move_in_filter_keeps_later_date(mock_sync_playwright):
+    """available_from after move_in_from must be included."""
+    text = "CHF 2'000\nOerlikon apartment from 01.09.2026 available now"
+    href = "/listing/later-date"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        move_in_from=date(2026, 6, 1),
+    )
+
+    assert len(result) == 1
+    assert result[0].available_from == date(2026, 9, 1)
+
+
+# ---------------------------------------------------------------------------
+# Title derivation logic
+# ---------------------------------------------------------------------------
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_title_from_zimmer_pattern(mock_sync_playwright):
+    """When card text contains a room count pattern, title is extracted from it."""
+    text = "CHF 2'000\n3 Zimmer\nOerlikon apartment available for rent now"
+    href = "/listing/zimmer"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
+
+    assert len(result) == 1
+    assert "Zimmer" in result[0].title
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_title_from_room_pattern(mock_sync_playwright):
+    """When card text contains an English room count, title is extracted from it."""
+    text = "CHF 2'000\n2 Room apartment in Oerlikon available now"
+    href = "/listing/rooms"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
+
+    assert len(result) == 1
+    assert "room" in result[0].title.lower()
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_title_from_size_when_no_room_pattern(mock_sync_playwright):
+    """When only size is present (no room pattern), title is '<size>m² Apartment'."""
+    text = "CHF 2'000\n65 m²\nOerlikon apartment available for rent now"
+    href = "/listing/size-only"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
+
+    assert len(result) == 1
+    assert result[0].title == "65m² Apartment"
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_size_m2_extracted_when_present(mock_sync_playwright):
+    """When m² is in the card text, size_m2 should be populated."""
+    text = "CHF 2'000\n80 m²\nOerlikon apartment available for rent now"
+    href = "/listing/with-size"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
+
+    assert len(result) == 1
+    assert result[0].size_m2 == 80.0
+
+
+@patch("src.aggregator.scrapers.ums.sync_playwright")
+def test_scrape_ums_unicode_apostrophe_price(mock_sync_playwright):
+    """Unicode right single quotation mark (\u2019) in price is handled."""
+    # u2019 is the RIGHT SINGLE QUOTATION MARK used as thousands separator in some locales
+    text = "CHF 2\u2019800\nOerlikon apartment available for rent now"
+    href = "/listing/unicode-price"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
+
+    assert len(result) == 1
+    assert result[0].price_chf == 2800.0

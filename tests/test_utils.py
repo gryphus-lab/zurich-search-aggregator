@@ -289,3 +289,90 @@ def test_is_furnished_friendly_partial_keyword_in_sentence():
 
 def test_is_furnished_friendly_keyword_mixed_case_in_text():
     assert is_furnished_friendly("This listing is Furnished and available") is True
+
+
+# ---------------------------------------------------------------------------
+# parse_available_from – German month names (via _try_parse_de_month)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_available_from_german_mai():
+    """German month 'Mai' (May) is parsed via the German month fallback."""
+    assert parse_available_from("15 Mai 2026") == date(2026, 5, 15)
+
+
+def test_parse_available_from_german_maerz():
+    """'März' (March) long form is handled."""
+    assert parse_available_from("15 März 2026") == date(2026, 3, 15)
+
+
+def test_parse_available_from_german_maerz_alternate_spelling():
+    """'maerz' alternate ASCII spelling is also recognized."""
+    assert parse_available_from("1 maerz 2026") == date(2026, 3, 1)
+
+
+def test_parse_available_from_german_januar():
+    assert parse_available_from("1 Januar 2026") == date(2026, 1, 1)
+
+
+def test_parse_available_from_german_dezember():
+    assert parse_available_from("31 Dezember 2026") == date(2026, 12, 31)
+
+
+def test_parse_available_from_german_month_only_defaults_day_to_one():
+    """When only a German month name and year are given, day defaults to 1."""
+    assert parse_available_from("Juni 2026") == date(2026, 6, 1)
+    assert parse_available_from("Oktober 2026") == date(2026, 10, 1)
+
+
+def test_parse_available_from_german_month_with_period():
+    """'15. März 2026' (with dot after day) is parsed correctly."""
+    assert parse_available_from("15. März 2026") == date(2026, 3, 15)
+
+
+def test_parse_available_from_german_month_with_ab_prefix():
+    """German prefix 'ab' is stripped before German month parsing."""
+    assert parse_available_from("ab 1 Mai 2026") == date(2026, 5, 1)
+
+
+def test_parse_available_from_german_short_month_mär():
+    """Short form 'mär' maps to March."""
+    assert parse_available_from("15 mär 2026") == date(2026, 3, 15)
+
+
+def test_parse_available_from_german_short_month_dez():
+    """Short form 'dez' maps to December."""
+    assert parse_available_from("1 dez 2026") == date(2026, 12, 1)
+
+
+def test_parse_available_from_iso_invalid_month_returns_none():
+    """An ISO-formatted string with an invalid month should return None, not raise."""
+    assert parse_available_from("2026-13-01") is None
+
+
+def test_parse_available_from_all_prefix_variants_stripped():
+    """All prefix variants ('ab', 'from', 'available from', 'verfügbar ab') are removed."""
+    expected = date(2026, 5, 1)
+    assert parse_available_from("ab 01.05.2026") == expected
+    assert parse_available_from("from 01.05.2026") == expected
+    assert parse_available_from("available from 01.05.2026") == expected
+    assert parse_available_from("available 01.05.2026") == expected
+
+
+# ---------------------------------------------------------------------------
+# normalize_neighborhood – additional edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_neighborhood_oerlikon_zuerich_variant():
+    """'oerlikon zürich' normalizes by stripping 'zürich' → 'oerlikon'."""
+    assert normalize_neighborhood("oerlikon zürich") == "Oerlikon"
+
+
+def test_normalize_neighborhood_seebach_zuerich_variant():
+    assert normalize_neighborhood("seebach zürich") == "Seebach"
+
+
+def test_normalize_neighborhood_unknown_with_dash_returns_title():
+    """An unknown hyphenated slug is returned title-cased with spaces."""
+    assert normalize_neighborhood("hard-bruecke") == "Hard Bruecke"

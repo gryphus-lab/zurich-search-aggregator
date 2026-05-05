@@ -142,7 +142,7 @@ def scrape_ums(
                         if size_match:
                             try:
                                 size_m2 = float(size_match.group(1).replace(",", "."))
-                            except ValueError, AttributeError:
+                            except (ValueError, AttributeError):
                                 size_m2 = None
                         listing = ApartmentListing(
                             id=normalized_href.split("/")[-1]
