@@ -19,9 +19,13 @@ def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
     if not avail_str:
         return None
 
+    # Check for "sofort" (immediately available)
+    if re.search(r"\bsofort\b", avail_str, re.I):
+        return date.today()
+
     # Clean common prefixes
     clean = re.sub(
-        r"(?:ab|verfügbar ab|available from?|from|sofort)\s*", "", avail_str, flags=re.I
+        r"(?:ab|verfügbar ab|available(?:\s+from)?|from)\s*", "", avail_str, flags=re.I
     ).strip()
 
     formats = [
@@ -41,6 +45,56 @@ def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
             )
         except ValueError:
             continue
+
+    # Try parsing German month names
+    parsed = _try_parse_de_month(clean)
+    if parsed:
+        return parsed
+
+    return None
+
+
+def _try_parse_de_month(date_str: str) -> Optional[date]:
+    """
+    Parse German month names from date strings like "15 Mai 2026" or "Mai 2026".
+
+    Parameters:
+        date_str (str): Date string potentially containing German month names.
+
+    Returns:
+        Optional[date]: Parsed date or None if parsing fails.
+    """
+    # Map German month names (short and long forms) to month numbers
+    de_months = {
+        'januar': 1, 'jan': 1,
+        'februar': 2, 'feb': 2,
+        'märz': 3, 'mär': 3, 'maerz': 3,
+        'april': 4, 'apr': 4,
+        'mai': 5,
+        'juni': 6, 'jun': 6,
+        'juli': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'oktober': 10, 'okt': 10,
+        'november': 11, 'nov': 11,
+        'dezember': 12, 'dez': 12,
+    }
+
+    # Try pattern: "15 Mai 2026" or "Mai 2026"
+    match = re.search(r'(\d{1,2})?\s*([a-zä]+)\s+(\d{4})', date_str, re.I)
+    if match:
+        day_str, month_str, year_str = match.groups()
+        month_name = month_str.lower()
+
+        if month_name in de_months:
+            day = int(day_str) if day_str else 1
+            month = de_months[month_name]
+            year = int(year_str)
+
+            try:
+                return date(year, month, day)
+            except ValueError:
+                pass
 
     return None
 

@@ -49,14 +49,14 @@ def scrape_homegate(
         for neigh in neighborhoods:
             # Homegate search URL
             url = (
-                f"https://www.homegate.ch/en/rent/apartment/zip-{neigh.lower()}-zurich"
-                f"?ep={price_min}&epmax={price_max}&ms=1"  # ms=1 = furnished
+                f"https://www.homegate.ch/en/rent/furnished-dwelling/city-{neigh.lower()}/matching-list"
+                f"?ag={price_min}&ah={price_max}"
             )
 
             logger.info(f"Scraping Homegate → {neigh} | URL: {url}")
 
             for page_num in range(1, max_pages + 1):
-                current_url = f"{url}&page={page_num}" if page_num > 1 else url
+                current_url = f"{url}&ep={page_num}" if page_num > 1 else url
 
                 try:
                     page.goto(current_url, wait_until="domcontentloaded", timeout=90000)
@@ -109,7 +109,7 @@ def scrape_homegate(
 
                             # Available from
                             avail_match = re.search(
-                                r"(?:ab|verfügbar|available from?)\s*([\d.]{8,10})",
+                                r"(?:ab|verfügbar|available(?:\s+from)?)\s*([\d.]{8,10})",
                                 text,
                                 re.I,
                             )

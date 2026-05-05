@@ -63,6 +63,7 @@ def run_all_scrapers(
             price_max=price_max,
             neighborhoods=neighborhoods,
             move_in_from=move_in_from,
+            max_pages=max_pages,
         )
         all_listings.extend(homegate_results)
         logger.info(f"Homegate → added {len(homegate_results)} listings")

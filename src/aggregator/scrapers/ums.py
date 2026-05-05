@@ -1,6 +1,7 @@
 import re
 from datetime import date
 from typing import List, Optional
+from urllib.parse import quote_plus
 
 from playwright.sync_api import sync_playwright
 
@@ -45,7 +46,10 @@ def scrape_ums(
         page = context.new_page()
 
         for neigh in neighborhoods:
-            url = f"https://www.ums.ch/en/search?location={neigh}+Zürich&price_from={price_min}&price_to={price_max}&type=apartment"
+            # Use path-based URL structure for furnished apartments
+            location_encoded = quote_plus(f"{neigh} Zürich")
+            # Using generic lat/lng for Zurich center as placeholder
+            url = f"https://www.ums.ch/furnished-apartments/{location_encoded}/47.3769/8.5417/"
 
             logger.info(f"Scraping UMS → {neigh} | URL: {url}")
 
@@ -72,27 +76,39 @@ def scrape_ums(
                         if not link:
                             continue
 
-                        price_match = re.search(r"CHF\s*([\d']+)", text)
+                        price_match = re.search(r"CHF\s*([\d'\u2019]+)", text)
                         price = (
-                            float(price_match.group(1).replace("'", ""))
+                            float(price_match.group(1).replace("'", "").replace("\u2019", ""))
                             if price_match
                             else 0
                         )
                         if price < price_min or price > price_max:
                             continue
 
-                        title = "Temporary Apartment"
+                        # Derive title from room count or size if available, otherwise use text snippet
+                        room_match = re.search(r"(\d+(?:\s*[½1/2])?\s*[Rr]oom|[Zz]immer)", text, re.I)
+                        size_match = re.search(r"(\d+)\s*m²", text)
+                        if room_match:
+                            title = room_match.group(0)
+                        elif size_match:
+                            title = f"{size_match.group(1)}m² Apartment"
+                        else:
+                            title = text[:50].split('\n')[0] if text else "Temporary Apartment"
+
+                        # Extract availability with broader pattern
                         avail_match = re.search(
-                            r"(?:ab|from|verfügbar)\s*([\d.]+)", text, re.I
+                            r"(?:ab|from|verfügbar|available)\s+([\w\s\d./-]+?)(?:\s|$)", text, re.I
                         )
                         available_from = None
                         if avail_match:
                             available_from = parse_available_from(
-                                avail_match.group(1)
-                            )  # reuse function from other files
+                                avail_match.group(1).strip()
+                            )
 
+                        # Normalize href by stripping trailing slashes before extracting ID
+                        normalized_href = href.rstrip('/') if href else ""
                         listing = ApartmentListing(
-                            id=href.split("/")[-1] if href else f"ums-{len(results)}",
+                            id=normalized_href.split("/")[-1] if normalized_href else f"ums-{len(results)}",
                             title=title,
                             price_chf=price,
                             neighborhood=neigh,
