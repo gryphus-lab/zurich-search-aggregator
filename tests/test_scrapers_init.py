@@ -5,7 +5,7 @@ The Playwright-based scraper functions are mocked so no browser is launched.
 """
 
 from datetime import date
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 from src.aggregator.models import ApartmentListing
@@ -48,7 +48,9 @@ def _make_listing(source: str, link: str, price: float = 2000.0) -> ApartmentLis
 @patch("src.aggregator.scrapers.scrape_homegate")
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_combines_both_sources(mock_flatfox, mock_blueground, mock_homegate, mock_ums):
+def test_run_all_scrapers_combines_both_sources(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
     ff_listing = _make_listing("flatfox", "https://flatfox.ch/flat/1")
     bg_listing = _make_listing("blueground", "https://theblueground.com/p/1")
 
@@ -72,7 +74,9 @@ def test_run_all_scrapers_combines_both_sources(mock_flatfox, mock_blueground, m
 @patch("src.aggregator.scrapers.scrape_homegate")
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_passes_parameters_to_flatfox(mock_flatfox, mock_blueground, mock_homegate, mock_ums):
+def test_run_all_scrapers_passes_parameters_to_flatfox(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
     """
     Verifies that run_all_scrapers forwards the price range, neighborhoods, move-in date, and max_pages parameters to the Flatfox scraper.
 
@@ -155,7 +159,9 @@ def test_run_all_scrapers_returns_empty_list_when_both_scrapers_return_nothing(
 @patch("src.aggregator.scrapers.scrape_homegate")
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_continues_if_flatfox_raises(mock_flatfox, mock_blueground, mock_homegate, mock_ums):
+def test_run_all_scrapers_continues_if_flatfox_raises(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
     """A Flatfox failure must not prevent Blueground results from being returned."""
     mock_flatfox.side_effect = RuntimeError("Network error")
     bg_listing = _make_listing("blueground", "https://theblueground.com/p/bg-1")
@@ -177,7 +183,9 @@ def test_run_all_scrapers_continues_if_flatfox_raises(mock_flatfox, mock_bluegro
 @patch("src.aggregator.scrapers.scrape_homegate")
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_continues_if_blueground_raises(mock_flatfox, mock_blueground, mock_homegate, mock_ums):
+def test_run_all_scrapers_continues_if_blueground_raises(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
     """A Blueground failure must not prevent Flatfox results from being returned."""
     ff_listing = _make_listing("flatfox", "https://flatfox.ch/flat/ff-2")
     mock_flatfox.return_value = [ff_listing]
@@ -221,7 +229,9 @@ def test_run_all_scrapers_continues_if_both_scrapers_raise(
 @patch("src.aggregator.scrapers.scrape_homegate")
 @patch("src.aggregator.scrapers.scrape_blueground")
 @patch("src.aggregator.scrapers.scrape_flatfox")
-def test_run_all_scrapers_preserves_listing_order(mock_flatfox, mock_blueground, mock_homegate, mock_ums):
+def test_run_all_scrapers_preserves_listing_order(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
     """
     Verify that listings from Flatfox appear before those from Blueground, preserving the order within each source.
     """

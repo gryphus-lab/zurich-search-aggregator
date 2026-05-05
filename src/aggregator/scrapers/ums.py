@@ -24,7 +24,7 @@ def scrape_ums(
         price_min (int): Minimum rent in CHF to include (default: 1700).
         price_max (int): Maximum rent in CHF to include (default: 3000).
         neighborhoods (List[str], optional): Neighborhood names to search. When omitted, defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"].
-        move_in_from (Optional[date]): Optional move-in date parameter (accepted but not used by this function).
+        move_in_from (Optional[date]): Optional earliest move-in date filter. When provided, listings with an availability date earlier than this value are excluded. Must be a date object or None. Listings without a parsed availability date are not filtered.
 
     Returns:
         List[ApartmentListing]: A list of ApartmentListing objects matching the search filters; each entry contains parsed fields such as `id`, `title`, `price_chf`, `neighborhood`, `address`, `link`, `available_from` (if parsed), `description_snippet`, and `raw_data`.
@@ -100,7 +100,7 @@ def scrape_ums(
 
                         # Derive title from room count or size if available, otherwise use text snippet
                         room_match = re.search(
-                            r"(\d+(?:\s*[½1/2])?\s*[Rr]oom|[Zz]immer)", text, re.I
+                            r"(\d+(?:\s*[½1/2])?\s*(?:[Rr]oom|[Zz]immer))", text, re.I
                         )
                         size_match = re.search(r"(\d+)\s*m²", text)
                         if room_match:
@@ -142,7 +142,7 @@ def scrape_ums(
                         if size_match:
                             try:
                                 size_m2 = float(size_match.group(1).replace(",", "."))
-                            except (ValueError, AttributeError):
+                            except ValueError, AttributeError:
                                 size_m2 = None
                         listing = ApartmentListing(
                             id=normalized_href.split("/")[-1]
@@ -175,10 +175,9 @@ def scrape_ums(
 
                     except Exception:
                         # Extract a unique identifier for logging
-                        card_id = "unknown"
                         try:
                             card_text = card.inner_text()[:100] if card else "N/A"
-                        except:
+                        except Exception:
                             card_text = "N/A"
                         logger.exception(
                             f"Failed to parse UMS card | Index: {len(results) + added} | "
