@@ -107,7 +107,9 @@ def scrape_ums(
 
                         # Extract availability with broader pattern
                         avail_match = re.search(
-                            r"(?:ab|from|verfügbar|available)\s+([\w\s\d./-]+?)(?:\s|$)", text, re.I
+                            r"(?:ab|from|verfügbar(?:\s+ab)?|available(?:\s+from)?)\s+"
+                            r"([\d.\-]{8,10}|\d{1,2}\.?\s+[A-Za-zäöüÄÖÜ]+\s+\d{4})",
+                            text, re.I,
                         )
                         available_from = None
                         if avail_match:
