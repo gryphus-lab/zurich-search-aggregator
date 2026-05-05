@@ -38,18 +38,16 @@ def parse_blueground_card(
     link: Optional[str] = None,
 ) -> Optional[ApartmentListing]:
     """
-    Parse a Blueground listing card's raw text and construct an ApartmentListing populated with extracted fields.
-
+    Parse a Blueground listing card's raw text into an ApartmentListing.
+    
     Parameters:
-        text (str): Raw inner-text of the card element to parse.
-        neighborhood (str): Neighborhood used as a fallback for address when one cannot be extracted.
-        move_in_from (Optional[date]): Optional move-in date to filter listings. If provided with a link, reject if parsed available_from is earlier (apartment would be rented out by move-in date). Returns None in that case.
-        link (Optional[str]): Optional link to the listing; if not provided, one is generated from title. The ID is extracted from the last path segment of the link.
-
+        text (str): Raw inner text of the card element to parse.
+        neighborhood (str): Fallback neighborhood/address used when an address cannot be extracted from the text.
+        move_in_from (Optional[date]): If provided and `link` is provided, the listing is rejected (returns `None`) when the parsed "available from" date is earlier than this date.
+        link (Optional[str]): Optional listing URL; when present the listing ID is taken from the last path segment. If omitted, a canonical Blueground URL is generated from the extracted id or title.
+    
     Returns:
-        Optional[ApartmentListing]: An ApartmentListing populated with id, title, address, price_chf, neighborhood,
-        link, available_from, size_m2, rooms (None), source ("blueground"), furnished (True), a short description_snippet,
-        and raw_data. Returns `None` only if a listing cannot be produced from the provided text or if move_in_from conflicts with parsed availability.
+        Optional[ApartmentListing]: An ApartmentListing populated with id, title, address, price_chf, neighborhood, link, available_from, size_m2, rooms (None), source ("blueground"), furnished (True), a short description_snippet, and raw_data. Returns `None` only when the listing is rejected due to a move-in date conflict as described above.
     """
     text = (text or "").strip()
 

@@ -16,6 +16,19 @@ def scrape_homegate(
     move_in_from: Optional[date] = None,
     max_pages: int = 5,
 ) -> List[ApartmentListing]:
+    """
+    Scrapes Homegate apartment listings for specified Zurich neighborhoods, price range, and optional earliest move-in date.
+    
+    Parameters:
+        price_min (int): Minimum price in CHF to include.
+        price_max (int): Maximum price in CHF to include.
+        neighborhoods (List[str] | None): Neighborhood names to search; defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"] when None.
+        move_in_from (date | None): If provided, only include listings with an available-from date on or after this date.
+        max_pages (int): Maximum number of paginated result pages to fetch per neighborhood.
+    
+    Returns:
+        List[ApartmentListing]: Collected apartment listings matching the filters, each populated with metadata such as id, title, price_chf, neighborhood, link, available_from, size_m2, source="homegate", furnished=True, a truncated description_snippet, and raw_data.
+    """
     if neighborhoods is None:
         neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
 
