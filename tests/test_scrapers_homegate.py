@@ -6,6 +6,7 @@ sync_playwright is mocked throughout so no browser is launched.
 
 from datetime import date
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -184,7 +185,9 @@ def test_scrape_homegate_href_prepends_base_url_for_relative_paths(mock_sync_pla
     )
 
     assert len(result) == 1
-    assert result[0].link.startswith("https://www.homegate.ch")
+    parsed = urlparse(result[0].link)
+    assert parsed.scheme == "https"
+    assert parsed.hostname == "www.homegate.ch"
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
