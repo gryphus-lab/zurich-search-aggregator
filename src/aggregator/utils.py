@@ -116,7 +116,7 @@ def normalize_neighborhood(neigh: str) -> str:
         "altstetten": "Altstetten",
     }
     key = neigh.lower().strip().replace(" ", "-").replace("quartier-", "").replace("zürich", "").rstrip("-")
-    return mapping.get(key, neigh.title())
+    return mapping.get(key, key.replace("-", " ").title())
 
 
 def is_furnished_friendly(text: str) -> bool:

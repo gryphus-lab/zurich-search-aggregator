@@ -87,15 +87,12 @@ def test_parse_available_from_strips_available_from_prefix():
     assert parse_available_from("Available from 1 Sep 2026") == date(2026, 9, 1)
 
 
-def test_parse_available_from_strips_available_prefix_without_from():
-    """'available' without 'from' may still be stripped by the regex."""
-    # The regex is "available from?" — the 'm' is optional with '?'
-    # but actually 'available' needs a full match. Let's test 'available 1 Oct 2026'
-    # regex: "available from?" matches "available fro" but not bare "available"
-    # Actually the pattern is r"available from?" - this matches "available from" or "available fro"
-    # It does NOT match bare "available " — so this may not strip
-    # Let's just test the known-working prefix
+def test_parse_available_from_strips_available_prefix():
+    """'available' with and without 'from' should be stripped by the regex."""
+    # Test with "available from"
     assert parse_available_from("available from 01.09.2026") == date(2026, 9, 1)
+    # Test with bare "available" (regex pattern has optional "from" after "available")
+    assert parse_available_from("available 01.09.2026") == date(2026, 9, 1)
 
 
 def test_parse_available_from_strips_from_prefix():

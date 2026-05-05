@@ -137,6 +137,13 @@ def scrape_ums(
 
                         # Normalize href by stripping trailing slashes before extracting ID
                         normalized_href = href.rstrip("/") if href else ""
+                        # Extract size_m2 from size_match if available
+                        size_m2 = None
+                        if size_match:
+                            try:
+                                size_m2 = float(size_match.group(1).replace(",", "."))
+                            except (ValueError, AttributeError):
+                                size_m2 = None
                         listing = ApartmentListing(
                             id=normalized_href.split("/")[-1]
                             if normalized_href
@@ -147,7 +154,7 @@ def scrape_ums(
                             address=neigh,
                             link=link,
                             available_from=available_from,
-                            size_m2=None,
+                            size_m2=size_m2,
                             rooms=None,
                             source="ums",
                             furnished=True,
@@ -167,6 +174,16 @@ def scrape_ums(
                         added += 1
 
                     except Exception:
+                        # Extract a unique identifier for logging
+                        card_id = "unknown"
+                        try:
+                            card_text = card.inner_text()[:100] if card else "N/A"
+                        except:
+                            card_text = "N/A"
+                        logger.exception(
+                            f"Failed to parse UMS card | Index: {len(results) + added} | "
+                            f"Snippet: {card_text}"
+                        )
                         continue
 
                 logger.info(f"UMS {neigh}: Added {added} listings")
