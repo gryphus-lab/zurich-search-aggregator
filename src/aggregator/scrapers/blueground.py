@@ -1,7 +1,8 @@
 import re
-from datetime import date, datetime
+from datetime import date
 from calendar import monthrange
 from typing import List, Optional
+from ..utils import parse_available_from
 
 from playwright.sync_api import sync_playwright
 
@@ -29,35 +30,6 @@ def get_checkout_one_year_later(start_date: date) -> date:
     return date(next_year, next_month, last_day)
 
 
-def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
-    """
-    Parse an "available from" string into a date.
-
-    Strips a leading "Available" (case-insensitive) and attempts to parse the remaining text using several common date formats.
-
-    Parameters:
-        avail_str (Optional[str]): Input string possibly prefixed with "Available" and containing a date (e.g. "Available 1 Jan 2024").
-
-    Returns:
-        Optional[date]: The parsed `date` if parsing succeeds, `None` if the input is falsy or no supported format matches.
-
-    Accepted date formats:
-        - "%d %b %Y" (e.g. "1 Jan 2024")
-        - "%b %d %Y" (e.g. "Jan 1 2024")
-        - "%d %B %Y" (e.g. "1 January 2024")
-        - "%d.%m.%Y" (e.g. "01.01.2024")
-    """
-    if not avail_str:
-        return None
-    avail_str = re.sub(r"Available\s*", "", avail_str, flags=re.I).strip()
-    for fmt in ("%d %b %Y", "%b %d %Y", "%d %B %Y", "%d.%m.%Y"):
-        try:
-            return datetime.strptime(avail_str, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
 def parse_blueground_card(
     *,
     text: str,
@@ -66,18 +38,18 @@ def parse_blueground_card(
     link: Optional[str] = None,
 ) -> Optional[ApartmentListing]:
     """
-    Parse a Blueground listing card's raw text and construct an ApartmentListing populated with extracted fields.
+    Parse a Blueground listing card's inner text into an ApartmentListing.
+
+    Parses a raw card text produced by the Blueground listing UI and constructs an ApartmentListing with extracted id, title, address, price (CHF), neighborhood, link, availability date, size (m²), and other metadata.
 
     Parameters:
-        text (str): Raw inner-text of the card element to parse.
-        neighborhood (str): Neighborhood used as a fallback for address when one cannot be extracted.
-        move_in_from (Optional[date]): Optional move-in date to filter listings. If provided with a link, reject if parsed available_from is earlier (apartment would be rented out by move-in date). Returns None in that case.
-        link (Optional[str]): Optional link to the listing; if not provided, one is generated from title. The ID is extracted from the last path segment of the link.
+        text (str): Raw inner text of the card element to parse; may be empty or whitespace.
+        neighborhood (str): Fallback neighborhood/address used when an address cannot be extracted from the text.
+        move_in_from (Optional[date]): When provided, this date will override the parsed availability date for the returned listing. Additionally, if `link` is provided and the parsed "available from" date exists and is earlier than `move_in_from`, the listing is rejected and the function returns `None`.
+        link (Optional[str]): Optional listing URL; when present the listing id is taken from the last path segment of this URL. When omitted, a canonical Blueground URL is generated from the extracted id or title.
 
     Returns:
-        Optional[ApartmentListing]: An ApartmentListing populated with id, title, address, price_chf, neighborhood,
-        link, available_from, size_m2, rooms (None), source ("blueground"), furnished (True), a short description_snippet,
-        and raw_data. Returns `None` only if a listing cannot be produced from the provided text or if move_in_from conflicts with parsed availability.
+        Optional[ApartmentListing]: An ApartmentListing populated with parsed fields (id, title, address, price_chf, neighborhood, link, available_from, size_m2, rooms=None, source="blueground", furnished=True, description_snippet, raw_data). Returns `None` only when `move_in_from` and `link` are provided and the parsed availability date is earlier than `move_in_from`.
     """
     text = (text or "").strip()
 

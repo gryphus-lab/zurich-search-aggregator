@@ -1,36 +1,12 @@
 import re
-from datetime import date, datetime
+from datetime import date
 from typing import List, Optional
 
 from playwright.sync_api import sync_playwright
 
 from ..models import ApartmentListing
 from ..logger import logger  # standard logger
-
-
-def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
-    """
-    Parse a free-form availability string into a date.
-
-    Leading phrases in German or English such as "ab", "from", "sofort", "verfügbar ab", or "available from" are ignored before parsing. Accepted date formats are "DD.MM.YYYY", "D Month YYYY" (full month name), "D Mon YYYY" (abbreviated month), and "YYYY-MM-DD". Returns None if the input is falsy or no supported format matches.
-
-    Parameters:
-        avail_str (Optional[str]): Availability text (e.g., "ab 01.05.2024", "from 2024-05-01").
-
-    Returns:
-        Optional[date]: The parsed date, or `None` when parsing fails or input is empty.
-    """
-    if not avail_str:
-        return None
-    avail_str = re.sub(
-        r"(?:ab|from|sofort|verfügbar ab|available from?)\s*", "", avail_str, flags=re.I
-    ).strip()
-    for fmt in ("%d.%m.%Y", "%d %B %Y", "%d %b %Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(avail_str, fmt).date()
-        except ValueError:
-            continue
-    return None
+from ..utils import parse_available_from
 
 
 def parse_flatfox_card(
@@ -41,12 +17,12 @@ def parse_flatfox_card(
     move_in_from: Optional[date] = None,
 ) -> Optional[ApartmentListing]:
     """
-    Parse a Flatfox listing card's text and link into an ApartmentListing object.
+    Create an ApartmentListing from a Flatfox card's text and link.
 
-    Parses price, title (preferring detected room count), availability date, and size from the provided card text; constructs an ApartmentListing with source "flatfox" and furnished=True. Returns None when the text is too short, the link is missing, a price cannot be extracted, or the listing is filtered out because its availability is earlier than `move_in_from`.
+    Parses price, title (preferring detected room count), availability date (via parse_available_from), and size from the provided card text; constructs an ApartmentListing with source "flatfox" and furnished=True. Returns None when the text is too short, the link is missing, a price cannot be extracted, or the listing is excluded by the move-in filter.
 
     Parameters:
-        neighborhood (str): Neighborhood name used as fallback for title and address when not present in the card.
+        neighborhood (str): Fallback value for title and address when not present in the card.
         move_in_from (Optional[date]): If provided, exclude listings whose parsed available date is earlier than this date.
 
     Returns:
