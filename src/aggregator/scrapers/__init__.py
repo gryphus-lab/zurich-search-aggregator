@@ -1,5 +1,7 @@
 from .blueground import scrape_blueground
 from .flatfox import scrape_flatfox
+from .homegate import scrape_homegate
+from .ums import scrape_ums
 from typing import List, Optional
 from datetime import date
 
@@ -30,7 +32,6 @@ def run_all_scrapers(
     logger.info("Run all active scrapers with parameters:s")
     all_listings: List[ApartmentListing] = []
 
-    # Flatfox — great for temporary/furnished sublets
     try:
         flatfox_results = scrape_flatfox(
             price_min=price_min,
@@ -44,7 +45,6 @@ def run_all_scrapers(
     except Exception as e:
         logger.error(f"Flatfox error: {e}")
 
-    # Blueground — excellent for serviced month-to-month
     try:
         blueground_results = scrape_blueground(
             price_min=price_min,
@@ -56,5 +56,29 @@ def run_all_scrapers(
         logger.info(f"Blueground → added {len(blueground_results)} listings")
     except Exception as e:
         logger.error(f"Blueground error: {e}")
+
+    try:
+        homegate_results = scrape_homegate(
+            price_min=price_min,
+            price_max=price_max,
+            neighborhoods=neighborhoods,
+            move_in_from=move_in_from,
+        )
+        all_listings.extend(homegate_results)
+        logger.info(f"Homegate → added {len(homegate_results)} listings")
+    except Exception as e:
+        logger.error(f"Homegate error: {e}")
+
+    try:
+        ums_results = scrape_ums(
+            price_min=price_min,
+            price_max=price_max,
+            neighborhoods=neighborhoods,
+            move_in_from=move_in_from,
+        )
+        all_listings.extend(ums_results)
+        logger.info(f"UMS → added {len(ums_results)} listings")
+    except Exception as e:
+        logger.error(f"UMS error: {e}")
 
     return all_listings

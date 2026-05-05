@@ -4,37 +4,7 @@ import hashlib
 
 from .models import ApartmentListing
 from .logger import logger  # standard logger
-
-
-def normalize_neighborhood(neigh: str) -> str:
-    """
-    Normalize a neighborhood string to a canonical neighborhood name.
-
-    Maps known variants (for example, "oerlikon zürich" or "quartier oerlikon") to a canonical form and returns the mapped value; if no mapping exists, returns the input title-cased.
-
-    Parameters:
-        neigh (str): Neighborhood string to normalize; may include variants, punctuation, or leading "quartier-".
-
-    Returns:
-        str: Canonical neighborhood name when recognized (e.g., "Oerlikon"), otherwise the input with title casing.
-    """
-    mapping = {
-        "oerlikon": "Oerlikon",
-        "seebach": "Seebach",
-        "wipkingen": "Wipkingen",
-        "altstetten": "Altstetten",
-        "oerlikon zürich": "Oerlikon",
-        "quartier oerlikon": "Oerlikon",
-    }
-    key = (
-        neigh.lower()
-        .strip()
-        .replace(" ", "-")
-        .replace("quartier-", "")
-        .replace("zürich", "")
-        .rstrip("-")
-    )
-    return mapping.get(key, neigh.title())
+from .utils import normalize_neighborhood
 
 
 def is_month_to_month_friendly(listing: ApartmentListing) -> bool:

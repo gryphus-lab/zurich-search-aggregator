@@ -1,7 +1,8 @@
 import re
-from datetime import date, datetime
+from datetime import date
 from calendar import monthrange
 from typing import List, Optional
+from ..utils import parse_available_from
 
 from playwright.sync_api import sync_playwright
 
@@ -27,35 +28,6 @@ def get_checkout_one_year_later(start_date: date) -> date:
     # Get the last day of next month
     _, last_day = monthrange(next_year, next_month)
     return date(next_year, next_month, last_day)
-
-
-def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
-    """
-    Parse an "available from" string into a date.
-
-    Strips a leading "Available" (case-insensitive) and attempts to parse the remaining text using several common date formats.
-
-    Parameters:
-        avail_str (Optional[str]): Input string possibly prefixed with "Available" and containing a date (e.g. "Available 1 Jan 2024").
-
-    Returns:
-        Optional[date]: The parsed `date` if parsing succeeds, `None` if the input is falsy or no supported format matches.
-
-    Accepted date formats:
-        - "%d %b %Y" (e.g. "1 Jan 2024")
-        - "%b %d %Y" (e.g. "Jan 1 2024")
-        - "%d %B %Y" (e.g. "1 January 2024")
-        - "%d.%m.%Y" (e.g. "01.01.2024")
-    """
-    if not avail_str:
-        return None
-    avail_str = re.sub(r"Available\s*", "", avail_str, flags=re.I).strip()
-    for fmt in ("%d %b %Y", "%b %d %Y", "%d %B %Y", "%d.%m.%Y"):
-        try:
-            return datetime.strptime(avail_str, fmt).date()
-        except ValueError:
-            continue
-    return None
 
 
 def parse_blueground_card(
