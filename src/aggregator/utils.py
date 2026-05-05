@@ -6,15 +6,15 @@ from typing import Optional
 
 def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
     """
-    Parse an availability/move-in date string into a datetime.date.
+    Parse a raw availability or move-in string into a standardized calendar date.
     
-    Attempts to parse common Swiss/German/English availability expressions (e.g., "ab 15.05.2026", "available from May 15 2026", "2026-05-15"). Returns None when the input is falsy or no supported format matches.
+    Leading availability prefixes such as "ab", "verfügbar ab", "available from", "from", and "sofort" are removed before attempting to parse common date formats (for example "15.05.2026", "15 May 2026", "May 15 2026", and "2026-05-15").
     
     Parameters:
-        avail_str (Optional[str]): The raw availability string to parse.
+        avail_str (Optional[str]): Raw availability string, possibly including leading prefixes; may be None.
     
     Returns:
-        Optional[date]: A date representing the parsed availability, or `None` if parsing fails or input is empty.
+        Optional[date]: The parsed date if a supported format is matched, or `None` if the input is falsy or no format matches.
     """
     if not avail_str:
         return None
