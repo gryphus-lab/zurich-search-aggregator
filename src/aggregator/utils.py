@@ -7,26 +7,26 @@ from typing import Optional
 def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
     """
     Parse a raw availability or move-in string into a standardized calendar date.
-
+    
     Leading availability prefixes such as "ab", "verfügbar ab", "available from", "from", and "sofort" are removed before attempting to parse common date formats (for example "15.05.2026", "15 May 2026", "May 15 2026", and "2026-05-15").
-
+    
     Parameters:
         avail_str (Optional[str]): Raw availability string, possibly including leading prefixes; may be None.
-
+    
     Returns:
         Optional[date]: The parsed date if a supported format is matched, or `None` if the input is falsy or no format matches.
     """
     if not avail_str:
         return None
 
-    # Check for "sofort" (immediately available)
-    if re.search(r"\bsofort\b", avail_str, re.I):
-        return date.today()
-
-    # Clean common prefixes
+    # Clean common prefixes including "sofort"
     clean = re.sub(
-        r"(?:ab|verfügbar ab|available(?:\s+from)?|from)\s*", "", avail_str, flags=re.I
+        r"(?:ab|verfügbar ab|available(?:\s+from)?|from|sofort)\s*", "", avail_str, flags=re.I
     ).strip()
+
+    # If nothing remains after stripping, return None
+    if not clean:
+        return None
 
     formats = [
         "%d.%m.%Y",  # 15.05.2026
@@ -66,35 +66,22 @@ def _try_parse_de_month(date_str: str) -> Optional[date]:
     """
     # Map German month names (short and long forms) to month numbers
     de_months = {
-        "januar": 1,
-        "jan": 1,
-        "februar": 2,
-        "feb": 2,
-        "märz": 3,
-        "mär": 3,
-        "maerz": 3,
-        "april": 4,
-        "apr": 4,
-        "mai": 5,
-        "juni": 6,
-        "jun": 6,
-        "juli": 7,
-        "jul": 7,
-        "august": 8,
-        "aug": 8,
-        "september": 9,
-        "sep": 9,
-        "sept": 9,
-        "oktober": 10,
-        "okt": 10,
-        "november": 11,
-        "nov": 11,
-        "dezember": 12,
-        "dez": 12,
+        'januar': 1, 'jan': 1,
+        'februar': 2, 'feb': 2,
+        'märz': 3, 'mär': 3, 'maerz': 3,
+        'april': 4, 'apr': 4,
+        'mai': 5,
+        'juni': 6, 'jun': 6,
+        'juli': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'oktober': 10, 'okt': 10,
+        'november': 11, 'nov': 11,
+        'dezember': 12, 'dez': 12,
     }
 
     # Try pattern: "15 Mai 2026", "15. Mai 2026", or "Mai 2026"
-    match = re.search(r"(\d{1,2})?\s*\.?\s*([a-zäöüß]+)\s+(\d{4})", date_str, re.I)
+    match = re.search(r'(\d{1,2})?\s*\.?\s*([a-zäöüß]+)\s+(\d{4})', date_str, re.I)
     if match:
         day_str, month_str, year_str = match.groups()
         month_name = month_str.lower()
@@ -115,10 +102,10 @@ def _try_parse_de_month(date_str: str) -> Optional[date]:
 def normalize_neighborhood(neigh: str) -> str:
     """
     Normalize a neighborhood name to a canonical, title-cased form for known Swiss neighborhoods.
-
+    
     Parameters:
         neigh (str): Input neighborhood name; may include leading "quartier-" prefix, spaces, or mixed case.
-
+    
     Returns:
         str: Canonical neighborhood name when recognized (e.g., "Oerlikon"); otherwise the input converted to title case.
     """
@@ -128,17 +115,17 @@ def normalize_neighborhood(neigh: str) -> str:
         "wipkingen": "Wipkingen",
         "altstetten": "Altstetten",
     }
-    key = neigh.lower().strip().replace(" ", "-").replace("quartier-", "")
+    key = neigh.lower().strip().replace(" ", "-").replace("quartier-", "").replace("zürich", "").rstrip("-")
     return mapping.get(key, neigh.title())
 
 
 def is_furnished_friendly(text: str) -> bool:
     """
     Detects whether text suggests furnished, temporary, or short-term accommodation.
-
+    
     Parameters:
         text (str): Text to analyze for keywords that indicate furnished, temporary, or short-term rental.
-
+    
     Returns:
         bool: `True` if any furnishing/temporary-related keyword is present in `text`, `False` otherwise.
     """
