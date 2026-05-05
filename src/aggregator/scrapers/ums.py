@@ -1,7 +1,6 @@
 import re
 from datetime import date
 from typing import List, Optional
-from urllib.parse import quote_plus
 
 from playwright.sync_api import sync_playwright
 
@@ -18,15 +17,15 @@ def scrape_ums(
 ) -> List[ApartmentListing]:
     """
     Scrapes apartment listings from ums.ch for the specified Zurich neighborhoods and price range.
-    
+
     Builds and returns apartment records extracted from search result pages on https://www.ums.ch. Each returned listing includes parsed price, resolved link, neighborhood/address, optional parsed availability date (when present), a description snippet, and raw extracted text. Listings with prices outside the provided [price_min, price_max] range are excluded.
-    
+
     Parameters:
         price_min (int): Minimum rent in CHF to include (default: 1700).
         price_max (int): Maximum rent in CHF to include (default: 3000).
         neighborhoods (List[str], optional): Neighborhood names to search. When omitted, defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"].
         move_in_from (Optional[date]): Optional move-in date parameter (accepted but not used by this function).
-    
+
     Returns:
         List[ApartmentListing]: A list of ApartmentListing objects matching the search filters; each entry contains parsed fields such as `id`, `title`, `price_chf`, `neighborhood`, `address`, `link`, `available_from` (if parsed), `description_snippet`, and `raw_data`.
     """
@@ -88,7 +87,11 @@ def scrape_ums(
 
                         price_match = re.search(r"CHF\s*([\d'\u2019]+)", text)
                         price = (
-                            float(price_match.group(1).replace("'", "").replace("\u2019", ""))
+                            float(
+                                price_match.group(1)
+                                .replace("'", "")
+                                .replace("\u2019", "")
+                            )
                             if price_match
                             else 0
                         )
@@ -96,20 +99,27 @@ def scrape_ums(
                             continue
 
                         # Derive title from room count or size if available, otherwise use text snippet
-                        room_match = re.search(r"(\d+(?:\s*[½1/2])?\s*[Rr]oom|[Zz]immer)", text, re.I)
+                        room_match = re.search(
+                            r"(\d+(?:\s*[½1/2])?\s*[Rr]oom|[Zz]immer)", text, re.I
+                        )
                         size_match = re.search(r"(\d+)\s*m²", text)
                         if room_match:
                             title = room_match.group(0)
                         elif size_match:
                             title = f"{size_match.group(1)}m² Apartment"
                         else:
-                            title = text[:50].split('\n')[0] if text else "Temporary Apartment"
+                            title = (
+                                text[:50].split("\n")[0]
+                                if text
+                                else "Temporary Apartment"
+                            )
 
                         # Extract availability with broader pattern
                         avail_match = re.search(
                             r"(?:ab|from|verfügbar(?:\s+ab)?|available(?:\s+from)?)\s+"
                             r"([\d.\-]{8,10}|\d{1,2}\.?\s+[A-Za-zäöüÄÖÜ]+\s+\d{4})",
-                            text, re.I,
+                            text,
+                            re.I,
                         )
                         available_from = None
                         if avail_match:
@@ -126,9 +136,11 @@ def scrape_ums(
                             continue
 
                         # Normalize href by stripping trailing slashes before extracting ID
-                        normalized_href = href.rstrip('/') if href else ""
+                        normalized_href = href.rstrip("/") if href else ""
                         listing = ApartmentListing(
-                            id=normalized_href.split("/")[-1] if normalized_href else f"ums-{len(results)}",
+                            id=normalized_href.split("/")[-1]
+                            if normalized_href
+                            else f"ums-{len(results)}",
                             title=title,
                             price_chf=price,
                             neighborhood=neigh,

@@ -18,13 +18,13 @@ def parse_flatfox_card(
 ) -> Optional[ApartmentListing]:
     """
     Create an ApartmentListing from a Flatfox card's text and link.
-    
+
     Parses price, title (preferring detected room count), availability date (via parse_available_from), and size from the provided card text; constructs an ApartmentListing with source "flatfox" and furnished=True. Returns None when the text is too short, the link is missing, a price cannot be extracted, or the listing is excluded by the move-in filter.
-    
+
     Parameters:
         neighborhood (str): Fallback value for title and address when not present in the card.
         move_in_from (Optional[date]): If provided, exclude listings whose parsed available date is earlier than this date.
-    
+
     Returns:
         ApartmentListing or None: An ApartmentListing populated from the card, or `None` if parsing fails or the listing is excluded.
     """

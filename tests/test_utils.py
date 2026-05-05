@@ -9,7 +9,6 @@ Covers:
 
 from datetime import date
 
-import pytest
 
 from src.aggregator.utils import (
     is_furnished_friendly,
@@ -269,7 +268,14 @@ def test_is_furnished_friendly_case_insensitive():
 
 def test_is_furnished_friendly_each_keyword():
     """Every keyword in the list triggers the flag."""
-    keywords = ["möbliert", "furnished", "befristet", "temporary", "kurzfristig", "sublet"]
+    keywords = [
+        "möbliert",
+        "furnished",
+        "befristet",
+        "temporary",
+        "kurzfristig",
+        "sublet",
+    ]
     for kw in keywords:
         assert is_furnished_friendly(kw) is True, f"keyword '{kw}' not detected"
 

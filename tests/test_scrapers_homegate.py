@@ -8,7 +8,6 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
-import pytest
 
 from src.aggregator.scrapers.homegate import scrape_homegate
 
@@ -121,7 +120,9 @@ def test_scrape_homegate_title_extracted_from_zimmer_pattern(mock_sync_playwrigh
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
-def test_scrape_homegate_title_defaults_to_apartment_when_no_zimmer(mock_sync_playwright):
+def test_scrape_homegate_title_defaults_to_apartment_when_no_zimmer(
+    mock_sync_playwright,
+):
     text = "CHF 2'000\nNice flat in Oerlikon near the park area only here"
     href = "/en/rent/apartment/777"
 
@@ -172,7 +173,9 @@ def test_scrape_homegate_available_from_parsed(mock_sync_playwright):
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
-def test_scrape_homegate_href_prepends_base_url_for_relative_paths(mock_sync_playwright):
+def test_scrape_homegate_href_prepends_base_url_for_relative_paths(
+    mock_sync_playwright,
+):
     text = "CHF 2'000\n2 Zimmer\n50 m²\nWipkingen apartment for rent now"
     href = "/en/rent/apartment/rel-123"
 
@@ -469,10 +472,14 @@ def test_scrape_homegate_multiple_neighborhoods_all_scraped(mock_sync_playwright
         locator_mock = MagicMock()
         if call_count[0] == 0:
             # First neighborhood: Oerlikon
-            locator_mock.all.return_value = [_make_mock_card(text_oerlikon, "/a/oerlikon")]
+            locator_mock.all.return_value = [
+                _make_mock_card(text_oerlikon, "/a/oerlikon")
+            ]
         else:
             # Second neighborhood: Seebach
-            locator_mock.all.return_value = [_make_mock_card(text_seebach, "/a/seebach")]
+            locator_mock.all.return_value = [
+                _make_mock_card(text_seebach, "/a/seebach")
+            ]
         call_count[0] += 1
         return locator_mock
 
@@ -522,7 +529,7 @@ def test_scrape_homegate_default_neighborhoods_are_four(mock_sync_playwright):
     mock_pw_cm.__exit__ = MagicMock(return_value=False)
     mock_sync_playwright.return_value = mock_pw_cm
 
-    result = scrape_homegate(neighborhoods=None, max_pages=1)
+    scrape_homegate(neighborhoods=None, max_pages=1)
 
     # 4 neighborhoods × 1 page each → 4 goto calls
     assert mock_page.goto.call_count == 4
@@ -668,7 +675,9 @@ def test_scrape_homegate_listing_address_equals_neighborhood(mock_sync_playwrigh
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
-def test_scrape_homegate_description_snippet_truncated_to_450_chars(mock_sync_playwright):
+def test_scrape_homegate_description_snippet_truncated_to_450_chars(
+    mock_sync_playwright,
+):
     long_text = "CHF 2'000\n2 Zimmer\n50 m²\nOerlikon " + "x" * 1000
     href = "/en/rent/apartment/trunc"
 

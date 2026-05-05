@@ -7,7 +7,6 @@ sync_playwright is mocked throughout so no browser is launched.
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.aggregator.scrapers.ums import scrape_ums
 
@@ -566,9 +565,7 @@ def test_scrape_ums_source_is_ums(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert result[0].source == "ums"
 
@@ -582,9 +579,7 @@ def test_scrape_ums_address_equals_neighborhood(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Seebach"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Seebach"])
 
     assert result[0].address == "Seebach"
 
@@ -599,9 +594,7 @@ def test_scrape_ums_size_m2_is_none(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert result[0].size_m2 is None
 
@@ -616,9 +609,7 @@ def test_scrape_ums_rooms_is_none(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert result[0].rooms is None
 
@@ -632,9 +623,7 @@ def test_scrape_ums_description_snippet_truncated_to_400_chars(mock_sync_playwri
         cards=[_make_mock_card(long_text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert len(result) == 1
     snippet = result[0].description_snippet or ""
@@ -651,9 +640,7 @@ def test_scrape_ums_raw_data_contains_raw_text_key(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert "raw_text" in result[0].raw_data
 
@@ -667,9 +654,7 @@ def test_scrape_ums_id_from_last_href_segment(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert result[0].id == "ums-listing-xyz"
 
@@ -684,9 +669,7 @@ def test_scrape_ums_price_with_apostrophe_separator(mock_sync_playwright):
         cards=[_make_mock_card(text, href)]
     )
 
-    result = scrape_ums(
-        price_min=1700, price_max=3000, neighborhoods=["Oerlikon"]
-    )
+    result = scrape_ums(price_min=1700, price_max=3000, neighborhoods=["Oerlikon"])
 
     assert len(result) == 1
     assert result[0].price_chf == 2500.0

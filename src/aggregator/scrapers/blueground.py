@@ -39,15 +39,15 @@ def parse_blueground_card(
 ) -> Optional[ApartmentListing]:
     """
     Parse a Blueground listing card's inner text into an ApartmentListing.
-    
+
     Parses a raw card text produced by the Blueground listing UI and constructs an ApartmentListing with extracted id, title, address, price (CHF), neighborhood, link, availability date, size (m²), and other metadata.
-    
+
     Parameters:
         text (str): Raw inner text of the card element to parse; may be empty or whitespace.
         neighborhood (str): Fallback neighborhood/address used when an address cannot be extracted from the text.
         move_in_from (Optional[date]): When provided, this date will override the parsed availability date for the returned listing. Additionally, if `link` is provided and the parsed "available from" date exists and is earlier than `move_in_from`, the listing is rejected and the function returns `None`.
         link (Optional[str]): Optional listing URL; when present the listing id is taken from the last path segment of this URL. When omitted, a canonical Blueground URL is generated from the extracted id or title.
-    
+
     Returns:
         Optional[ApartmentListing]: An ApartmentListing populated with parsed fields (id, title, address, price_chf, neighborhood, link, available_from, size_m2, rooms=None, source="blueground", furnished=True, description_snippet, raw_data). Returns `None` only when `move_in_from` and `link` are provided and the parsed availability date is earlier than `move_in_from`.
     """
