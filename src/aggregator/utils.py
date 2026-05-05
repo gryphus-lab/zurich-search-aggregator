@@ -6,8 +6,15 @@ from typing import Optional
 
 def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
     """
-    Robust parser for Swiss/German/English availability dates.
-    Handles formats commonly seen on Homegate, Flatfox, Blueground, UMS, etc.
+    Parse an availability/move-in date string into a datetime.date.
+    
+    Attempts to parse common Swiss/German/English availability expressions (e.g., "ab 15.05.2026", "available from May 15 2026", "2026-05-15"). Returns None when the input is falsy or no supported format matches.
+    
+    Parameters:
+        avail_str (Optional[str]): The raw availability string to parse.
+    
+    Returns:
+        Optional[date]: A date representing the parsed availability, or `None` if parsing fails or input is empty.
     """
     if not avail_str:
         return None
@@ -39,7 +46,15 @@ def parse_available_from(avail_str: Optional[str]) -> Optional[date]:
 
 
 def normalize_neighborhood(neigh: str) -> str:
-    """Shared neighborhood normalizer"""
+    """
+    Normalize a neighborhood name to a canonical, title-cased form for known Swiss neighborhoods.
+    
+    Parameters:
+        neigh (str): Input neighborhood name; may include leading "quartier-" prefix, spaces, or mixed case.
+    
+    Returns:
+        str: Canonical neighborhood name when recognized (e.g., "Oerlikon"); otherwise the input converted to title case.
+    """
     mapping = {
         "oerlikon": "Oerlikon",
         "seebach": "Seebach",
@@ -51,7 +66,15 @@ def normalize_neighborhood(neigh: str) -> str:
 
 
 def is_furnished_friendly(text: str) -> bool:
-    """Shared heuristic for furnished/temporary"""
+    """
+    Detects whether text suggests furnished, temporary, or short-term accommodation.
+    
+    Parameters:
+        text (str): Text to analyze for keywords that indicate furnished, temporary, or short-term rental.
+    
+    Returns:
+        bool: `True` if any furnishing/temporary-related keyword is present in `text`, `False` otherwise.
+    """
     text_lower = text.lower()
     keywords = [
         "möbliert",

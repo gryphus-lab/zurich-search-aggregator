@@ -15,6 +15,20 @@ def scrape_ums(
     neighborhoods: List[str] = None,
     move_in_from: Optional[date] = None,
 ) -> List[ApartmentListing]:
+    """
+    Scrapes apartment listings from ums.ch for the specified Zurich neighborhoods and price range.
+    
+    Builds and returns apartment records extracted from search result pages on https://www.ums.ch. Each returned listing includes parsed price, resolved link, neighborhood/address, optional parsed availability date (when present), a description snippet, and raw extracted text. Listings with prices outside the provided [price_min, price_max] range are excluded.
+    
+    Parameters:
+        price_min (int): Minimum rent in CHF to include (default: 1700).
+        price_max (int): Maximum rent in CHF to include (default: 3000).
+        neighborhoods (List[str], optional): Neighborhood names to search. When omitted, defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"].
+        move_in_from (Optional[date]): Optional move-in date parameter (accepted but not used by this function).
+    
+    Returns:
+        List[ApartmentListing]: A list of ApartmentListing objects matching the search filters; each entry contains parsed fields such as `id`, `title`, `price_chf`, `neighborhood`, `address`, `link`, `available_from` (if parsed), `description_snippet`, and `raw_data`.
+    """
     if neighborhoods is None:
         neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
 
