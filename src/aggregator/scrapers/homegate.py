@@ -49,7 +49,7 @@ def scrape_homegate(
         for neigh in neighborhoods:
             # Homegate search URL
             url = (
-                f"https://www.homegate.ch/en/rent/furnished-dwelling/city-{neigh.lower()}/matching-list"
+                f"https://www.homegate.ch/en/rent/furnished-dwelling/district-{neigh.lower()}/matching-list"
                 f"?ag={price_min}&ah={price_max}"
             )
 
@@ -109,7 +109,7 @@ def scrape_homegate(
 
                             # Available from
                             avail_match = re.search(
-                                r"(?:ab|verfügbar|available(?:\s+from)?)\s*([\d.]{8,10})",
+                                r"(?:ab|verfügbar|available(?:\s+from)?)\s*([\d.\-\sa-zA-Z]{5,20})",
                                 text,
                                 re.I,
                             )
@@ -126,10 +126,11 @@ def scrape_homegate(
                             size_match = re.search(r"(\d+)\s*m²", text)
                             size_m2 = float(size_match.group(1)) if size_match else None
 
+                            # Normalize href and extract ID
+                            normalized_href = href.rstrip('/') if href else ""
+                            listing_id = normalized_href.split("/")[-1] if normalized_href else ""
                             listing = ApartmentListing(
-                                id=href.split("/")[-1]
-                                if href
-                                else f"hg-{len(results)}",
+                                id=listing_id if listing_id else f"hg-{len(results)}",
                                 title=title,
                                 price_chf=price,
                                 neighborhood=neigh,

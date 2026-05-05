@@ -45,11 +45,21 @@ def scrape_ums(
         )
         page = context.new_page()
 
+        # Neighborhood coordinates mapping (Zurich neighborhoods)
+        NEIGHBORHOOD_COORDS = {
+            "oerlikon": (47.4085, 8.5428),
+            "seebach": (47.4236, 8.5339),
+            "wipkingen": (47.3904, 8.5268),
+            "altstetten": (47.3882, 8.4934),
+        }
+
         for neigh in neighborhoods:
-            # Use path-based URL structure for furnished apartments
-            location_encoded = quote_plus(f"{neigh} Zürich")
-            # Using generic lat/lng for Zurich center as placeholder
-            url = f"https://www.ums.ch/furnished-apartments/{location_encoded}/47.3769/8.5417/"
+            # Derive neighborhood slug
+            neigh_clean = neigh.replace(" Zürich", "").replace(" ", "-").lower()
+            # Get coordinates for the neighborhood or fall back to Zurich center
+            lat, lng = NEIGHBORHOOD_COORDS.get(neigh_clean, (47.3769, 8.5417))
+            # Build URL using path structure
+            url = f"https://www.ums.ch/furnished-apartments/{neigh_clean}/{lat}/{lng}/"
 
             logger.info(f"Scraping UMS → {neigh} | URL: {url}")
 
@@ -104,6 +114,14 @@ def scrape_ums(
                             available_from = parse_available_from(
                                 avail_match.group(1).strip()
                             )
+
+                        # Filter by move_in_from date if specified
+                        if (
+                            move_in_from
+                            and available_from
+                            and available_from < move_in_from
+                        ):
+                            continue
 
                         # Normalize href by stripping trailing slashes before extracting ID
                         normalized_href = href.rstrip('/') if href else ""

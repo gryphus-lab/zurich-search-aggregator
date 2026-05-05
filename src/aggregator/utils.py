@@ -80,8 +80,8 @@ def _try_parse_de_month(date_str: str) -> Optional[date]:
         'dezember': 12, 'dez': 12,
     }
 
-    # Try pattern: "15 Mai 2026" or "Mai 2026"
-    match = re.search(r'(\d{1,2})?\s*([a-zä]+)\s+(\d{4})', date_str, re.I)
+    # Try pattern: "15 Mai 2026", "15. Mai 2026", or "Mai 2026"
+    match = re.search(r'(\d{1,2})?\s*\.?\s*([a-zäöüß]+)\s+(\d{4})', date_str, re.I)
     if match:
         day_str, month_str, year_str = match.groups()
         month_name = month_str.lower()
