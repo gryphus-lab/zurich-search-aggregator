@@ -9,13 +9,13 @@ from .utils import normalize_neighborhood
 
 def is_month_to_month_friendly(listing: ApartmentListing) -> bool:
     """
-    Determine whether a listing advertises a flexible, temporary, or furnished tenancy.
-
-    Inspects the listing's description and raw data for known keywords indicating flexibility, temporariness, or furnishing.
-
+    Detects whether a listing advertises a flexible, temporary, or furnished tenancy.
+    
+    Checks the listing's description_snippet (or empty string) combined with raw_data for known German/English keywords such as "befristet", "temporary", "month to month", "möbliert", "furnished", and similar indicators of short-term or furnished availability.
+    
     Parameters:
         listing (ApartmentListing): The listing to evaluate.
-
+    
     Returns:
         bool: `True` if any flexibility/temporary/furnishing keyword is present, `False` otherwise.
     """
