@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 
 from ..logger import logger
 from ..models import ApartmentListing
-from ..utils import parse_available_from
+from ..utils import normalize_neighborhood, parse_available_from
 
 
 NEIGHBORHOOD_COORDS = {
@@ -129,7 +129,8 @@ def _listing_from_card(card, neigh: str, price_min: int, price_max: int, move_in
 
 
 def _scrape_neighborhood_cards(page, neigh: str, price_min: int, price_max: int, move_in_from: Optional[date]) -> List[ApartmentListing]:
-    lat, lng = NEIGHBORHOOD_COORDS.get(neigh, (47.3769, 8.5417))
+    normalized_neigh = normalize_neighborhood(neigh)
+    lat, lng = NEIGHBORHOOD_COORDS.get(normalized_neigh, (47.3769, 8.5417))
     url = f"https://www.ums.ch/furnished-apartments/{neigh}/{lat}/{lng}/"
     logger.info(f"Scraping UMS → {neigh} | URL: {url}")
 

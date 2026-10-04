@@ -3,7 +3,10 @@ from datetime import date
 from src.aggregator.scrapers.blueground import (
     parse_available_from as parse_bg_available_from,
 )
-from src.aggregator.scrapers.blueground import parse_blueground_card, BLUEGROUND_TITLE
+from src.aggregator.scrapers.blueground import (
+    parse_blueground_card,
+    BLUEGROUND_TITLE,
+)
 from src.aggregator.scrapers.flatfox import (
     parse_available_from as parse_flatfox_available_from,
 )
