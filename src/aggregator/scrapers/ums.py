@@ -4,37 +4,171 @@ from typing import List, Optional
 
 from playwright.sync_api import sync_playwright
 
-from ..models import ApartmentListing
 from ..logger import logger
+from ..models import ApartmentListing
 from ..utils import parse_available_from
+
+
+NEIGHBORHOOD_COORDS = {
+    "Oerlikon": (47.41408, 8.54450),
+    "Seebach": (47.4236, 8.5339),
+    "Wipkingen": (47.3904, 8.5268),
+    "Altstetten": (47.3882, 8.4934),
+}
+
+_DEFAULT_NEIGHBORHOODS = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+
+
+def _extract_price(text: str) -> float:
+    match = re.search(r"CHF\s*([\d'’]+)", text)
+    if match is None:
+        return 0.0
+    return float(match.group(1).replace("'", "").replace("’", ""))
+
+
+def _extract_title(text: str) -> str:
+    patterns = [
+        r"(\d+\s*room)",
+        r"(\d+\s*zimmer)",
+        r"(\d+\s*[½1/2]\s*room)",
+        r"(\d+\s*[½1/2]\s*zimmer)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            return match.group(1)
+
+    for size_pattern in (r"(\d+(?:[.,]\d+)?)\s*m²", r"(\d+(?:[.,]\d+)?)\s*m2", r"(\d+(?:[.,]\d+)?)\s*sqm"):
+        match = re.search(size_pattern, text, re.I)
+        if match:
+            return f"{match.group(1).replace(',', '.')}m² Apartment"
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return "Temporary Apartment"
+
+
+def _extract_available_from(text: str) -> Optional[date]:
+    match = re.search(r"(?:ab|from|verfügbar)\s+([^\n\r]{5,20})", text, re.I)
+    if match is None:
+        return None
+    return parse_available_from(match.group(1))
+
+
+def _extract_size_m2(text: str) -> Optional[float]:
+    for size_pattern in (r"(\d+(?:[.,]\d+)?)\s*m²", r"(\d+(?:[.,]\d+)?)\s*m2", r"(\d+(?:[.,]\d+)?)\s*sqm"):
+        match = re.search(size_pattern, text, re.I)
+        if match:
+            return float(match.group(1).replace(",", "."))
+    return None
+
+
+def _build_link(href: str) -> str:
+    if not href:
+        return ""
+    return "https://www.ums.ch" + href if href.startswith("/") else href
+
+
+def _is_flexible(text: str) -> bool:
+    lowered = text.lower()
+    keywords = ["befristet", "temporary", "kurzfristig", "möbliert", "furnished"]
+    return any(keyword in lowered for keyword in keywords)
+
+
+def _debug_first_card(cards) -> None:
+    if not cards:
+        return
+    try:
+        first_text = cards[0].inner_text().strip()[:400]
+        logger.debug(f"FIRST UMS CARD PREVIEW:\n{first_text}\n---")
+    except Exception:
+        logger.debug("FIRST UMS CARD PREVIEW unavailable; skipping debug snapshot")
+
+
+def _listing_from_card(card, neigh: str, price_min: int, price_max: int, move_in_from: Optional[date], index: int) -> Optional[ApartmentListing]:
+    text = card.inner_text().strip()
+    if len(text) < 30:
+        return None
+
+    link_elem = card.locator("a").first
+    href = link_elem.get_attribute("href") or ""
+    link = _build_link(href)
+    if not link:
+        return None
+
+    price = _extract_price(text)
+    if price < price_min or price > price_max:
+        return None
+
+    title = _extract_title(text)
+    available_from = _extract_available_from(text)
+    if move_in_from and available_from and available_from < move_in_from:
+        return None
+
+    description_snippet = text[:400]
+    if _is_flexible(text):
+        description_snippet = "[FLEXIBLE] " + description_snippet
+
+    return ApartmentListing(
+        id=href.split("/")[-1] if href else f"ums-{index}",
+        title=title,
+        price_chf=price,
+        neighborhood=neigh,
+        address=neigh,
+        link=link,
+        available_from=available_from,
+        size_m2=_extract_size_m2(text),
+        rooms=None,
+        source="ums",
+        furnished=True,
+        description_snippet=description_snippet,
+        raw_data={"raw_text": text},
+    )
+
+
+def _scrape_neighborhood_cards(page, neigh: str, price_min: int, price_max: int, move_in_from: Optional[date]) -> List[ApartmentListing]:
+    lat, lng = NEIGHBORHOOD_COORDS.get(neigh, (47.3769, 8.5417))
+    url = f"https://www.ums.ch/furnished-apartments/{neigh}/{lat}/{lng}/"
+    logger.info(f"Scraping UMS → {neigh} | URL: {url}")
+
+    page.goto(url, wait_until="domcontentloaded", timeout=90000)
+    page.wait_for_timeout(10000)
+
+    for _ in range(6):
+        page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+        page.wait_for_timeout(4000)
+
+    cards = page.locator("div.ad, article, div.listing-item, div.search-result, div[class*='listing']").all()
+    logger.info(f"Found {len(cards)} potential cards for {neigh}")
+    _debug_first_card(cards)
+
+    results: List[ApartmentListing] = []
+    for index, card in enumerate(cards):
+        try:
+            listing = _listing_from_card(card, neigh, price_min, price_max, move_in_from, index)
+        except Exception:
+            continue
+        if listing is not None:
+            results.append(listing)
+
+    logger.info(f"UMS {neigh}: Added {len(results)} listings")
+    return results
 
 
 def scrape_ums(
     price_min: int = 1700,
     price_max: int = 3000,
-    neighborhoods: List[str] = None,
+    neighborhoods: Optional[List[str]] = None,
     move_in_from: Optional[date] = None,
 ) -> List[ApartmentListing]:
-    """
-    Scrapes apartment listings from ums.ch for the specified Zurich neighborhoods and price range.
-
-    Builds and returns apartment records extracted from search result pages on https://www.ums.ch. Each returned listing includes parsed price, resolved link, neighborhood/address, optional parsed availability date (when present), a description snippet, and raw extracted text. Listings with prices outside the provided [price_min, price_max] range are excluded.
-
-    Parameters:
-        price_min (int): Minimum rent in CHF to include (default: 1700).
-        price_max (int): Maximum rent in CHF to include (default: 3000).
-        neighborhoods (List[str], optional): Neighborhood names to search. When omitted, defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"].
-        move_in_from (Optional[date]): Optional earliest move-in date filter. When provided, listings with an availability date earlier than this value are excluded. Must be a date object or None. Listings without a parsed availability date are not filtered.
-
-    Returns:
-        List[ApartmentListing]: A list of ApartmentListing objects matching the search filters; each entry contains parsed fields such as `id`, `title`, `price_chf`, `neighborhood`, `address`, `link`, `available_from` (if parsed), `description_snippet`, and `raw_data`.
-    """
+    """Scrape apartment listings from ums.ch for the specified Zurich neighborhoods and price range."""
     if neighborhoods is None:
-        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+        neighborhoods = _DEFAULT_NEIGHBORHOODS
 
     results: List[ApartmentListing] = []
-
-    logger.info(f"Starting UMS scraper | Price: {price_min}-{price_max} CHF")
+    logger.info(f"Starting UMS scraper | Price: {price_min}-{price_max} CHF | Neighborhoods: {neighborhoods}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -44,153 +178,13 @@ def scrape_ums(
         )
         page = context.new_page()
 
-        # Neighborhood coordinates mapping (Zurich neighborhoods)
-        NEIGHBORHOOD_COORDS = {
-            "oerlikon": (47.4085, 8.5428),
-            "seebach": (47.4236, 8.5339),
-            "wipkingen": (47.3904, 8.5268),
-            "altstetten": (47.3882, 8.4934),
-        }
-
         for neigh in neighborhoods:
-            # Derive neighborhood slug
-            neigh_clean = neigh.replace(" Zürich", "").replace(" ", "-").lower()
-            # Get coordinates for the neighborhood or fall back to Zurich center
-            lat, lng = NEIGHBORHOOD_COORDS.get(neigh_clean, (47.3769, 8.5417))
-            # Build URL using path structure
-            url = f"https://www.ums.ch/furnished-apartments/{neigh_clean}/{lat}/{lng}/"
-
-            logger.info(f"Scraping UMS → {neigh} | URL: {url}")
-
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=90000)
-                page.wait_for_timeout(6000)
-
-                cards = page.locator("div.ad, article, div.listing-item").all()
-
-                added = 0
-                for card in cards:
-                    try:
-                        text = card.inner_text().strip()
-                        if len(text) < 30:
-                            continue
-
-                        link_elem = card.locator("a").first
-                        href = link_elem.get_attribute("href") or ""
-                        link = (
-                            "https://www.ums.ch" + href
-                            if href.startswith("/")
-                            else href
-                        )
-                        if not link:
-                            continue
-
-                        price_match = re.search(r"CHF\s*([\d'\u2019]+)", text)
-                        price = (
-                            float(
-                                price_match.group(1)
-                                .replace("'", "")
-                                .replace("\u2019", "")
-                            )
-                            if price_match
-                            else 0
-                        )
-                        if price < price_min or price > price_max:
-                            continue
-
-                        # Derive title from room count or size if available, otherwise use text snippet
-                        room_match = re.search(
-                            r"(\d+(?:\s*[½1/2])?\s*(?:[Rr]oom|[Zz]immer))", text, re.I
-                        )
-                        size_match = re.search(r"(\d+)\s*m²", text)
-                        if room_match:
-                            title = room_match.group(0)
-                        elif size_match:
-                            title = f"{size_match.group(1)}m² Apartment"
-                        else:
-                            title = (
-                                text[:50].split("\n")[0]
-                                if text
-                                else "Temporary Apartment"
-                            )
-
-                        # Extract availability with broader pattern
-                        avail_match = re.search(
-                            r"(?:ab|from|verfügbar(?:\s+ab)?|available(?:\s+from)?)\s+"
-                            r"([\d.\-]{8,10}|\d{1,2}\.?\s+[A-Za-zäöüÄÖÜ]+\s+\d{4})",
-                            text,
-                            re.I,
-                        )
-                        available_from = None
-                        if avail_match:
-                            available_from = parse_available_from(
-                                avail_match.group(1).strip()
-                            )
-
-                        # Filter by move_in_from date if specified
-                        if (
-                            move_in_from
-                            and available_from
-                            and available_from < move_in_from
-                        ):
-                            continue
-
-                        # Normalize href by stripping trailing slashes before extracting ID
-                        normalized_href = href.rstrip("/") if href else ""
-                        # Extract size_m2 from size_match if available
-                        size_m2 = None
-                        if size_match:
-                            try:
-                                size_m2 = float(size_match.group(1).replace(",", "."))
-                            except ValueError, AttributeError:
-                                size_m2 = None
-                        listing = ApartmentListing(
-                            id=normalized_href.split("/")[-1]
-                            if normalized_href
-                            else f"ums-{len(results)}",
-                            title=title,
-                            price_chf=price,
-                            neighborhood=neigh,
-                            address=neigh,
-                            link=link,
-                            available_from=available_from,
-                            size_m2=size_m2,
-                            rooms=None,
-                            source="ums",
-                            furnished=True,
-                            description_snippet=text[:400],
-                            raw_data={"raw_text": text},
-                        )
-
-                        if any(
-                            k in text.lower()
-                            for k in ["befristet", "temporary", "möbliert"]
-                        ):
-                            listing.description_snippet = (
-                                "[FLEXIBLE] " + listing.description_snippet
-                            )
-
-                        results.append(listing)
-                        added += 1
-
-                    except Exception:
-                        # Extract a unique identifier for logging
-                        try:
-                            card_text = card.inner_text()[:100] if card else "N/A"
-                        except Exception:
-                            card_text = "N/A"
-                        logger.exception(
-                            f"Failed to parse UMS card | Index: {len(results) + added} | "
-                            f"Snippet: {card_text}"
-                        )
-                        continue
-
-                logger.info(f"UMS {neigh}: Added {added} listings")
-
+                results.extend(_scrape_neighborhood_cards(page, neigh, price_min, price_max, move_in_from))
             except Exception as e:
                 logger.error(f"UMS {neigh} failed: {e}")
 
         browser.close()
 
-    logger.info(f"UMS scraper finished. Total: {len(results)} listings")
+    logger.info(f"UMS scraper finished. Total listings: {len(results)}")
     return results
