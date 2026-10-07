@@ -7,10 +7,12 @@ services:
     container_name: zurich-search-aggregator
     environment:
       - TZ=Europe/Zurich
-    # The aggregator is a batch CLI, not a long-running service. Override the
-    # command to pass search parameters, e.g.:
-    #   docker compose run --rm aggregator --metro --min 1700 --max 3500 --csv
-    command: ["--help"]
+    # The aggregator is a batch CLI, not a long-running service: it runs a
+    # scrape, writes results, and exits (so no container stays "running" -
+    # that is expected). The default below runs a metro-wide search; override
+    # with your own args, e.g.:
+    #   docker compose run --rm aggregator --neigh Thalwil --max 2800 --csv
+    command: ["--metro", "--json", "/app/results/latest.json"]
     # Persist scrape output on the host.
     volumes:
       - ./results:/app/results

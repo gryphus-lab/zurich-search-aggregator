@@ -112,6 +112,28 @@ Example (show all listings, not just flexible):
 python -m src.aggregator.main --min 1700 --max 3000 --all
 ```
 
+### Docker
+
+The aggregator is a **batch CLI**, not a long-running server: it runs a scrape,
+writes results, and exits. A finished container does **not** stay running - that
+is expected (unlike a web service, there is nothing to keep up).
+
+```bash
+# Build the image
+mise docker-build          # or: docker build -t zurich-search-aggregator:latest .
+
+# Run a scrape via Compose (writes to ./results on the host)
+mise docker-compose                       # default: metro-wide search
+mise docker-compose -- --neigh Thalwil --max 2800 --csv   # custom args
+
+# Or run the image directly
+docker run --rm -v "$PWD/results:/app/results" \
+  zurich-search-aggregator:latest --metro --min 1700 --max 3500
+```
+
+Results land in `./results` on the host. Because the job exits when done,
+`docker ps` will show no container afterwards - check `./results` for output.
+
 ### Output
 
 - JSON: `results/latest.json` (configurable with `--json`)

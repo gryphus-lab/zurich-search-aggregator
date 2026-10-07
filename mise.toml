@@ -52,8 +52,8 @@ run = "uv run pytest tests --cov=. --cov-report=term-missing --cov-report=xml:co
 depends = ["bootstrap"]
 
 [tasks.docker-compose]
-description = "Run the aggregator via Docker Compose (pass args after --)"
-run = "docker compose run --rm aggregator"
+description = "Run a one-shot scrape via Docker Compose (pass args after --)"
+run = "docker compose run --build --rm aggregator"
 
 [tasks.docker-build]
 description = "Build the aggregator Docker image"
