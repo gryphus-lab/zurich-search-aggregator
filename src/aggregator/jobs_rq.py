@@ -119,18 +119,18 @@ class RQJobStore:
 
     def submit(
         self,
-        work=None,
         *,
         params: Optional[dict] = None,
         callback_url: Optional[str] = None,
-        on_complete=None,  # accepted for interface parity; RQ uses its own hooks
     ) -> Job:
         """
         Enqueue a search job on the RQ queue.
 
         Unlike the in-process store, the work is identified by ``params`` (a
         plain dict passed to :func:`run_search_job` on the worker), because RQ
-        serializes the function reference + args rather than a closure.
+        serializes the function reference + args rather than a closure. Webhook
+        delivery uses RQ's own on_success/on_failure hooks (not an on_complete
+        callback), so this signature intentionally omits ``work``/``on_complete``.
         """
         from rq import Callback
 

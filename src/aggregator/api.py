@@ -156,9 +156,11 @@ def locations() -> dict:
 
 @app.post(
     "/search",
-    response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["search"],
+    responses={
+        422: {"description": "Invalid search parameters (e.g. unknown source)."}
+    },
 )
 def submit_search(req: SearchRequest, response: Response) -> JobAccepted:
     """
@@ -192,7 +194,11 @@ def submit_search(req: SearchRequest, response: Response) -> JobAccepted:
     return JobAccepted(job_id=job.id, status=job.status, status_url=status_url)
 
 
-@app.get("/search/{job_id}", response_model=JobView, tags=["search"])
+@app.get(
+    "/search/{job_id}",
+    tags=["search"],
+    responses={404: {"description": "No job with that id."}},
+)
 def get_search(job_id: str) -> JobView:
     """Return the status (and, when finished, the results) of a search job."""
     job = _store.get(job_id)
