@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.14.3",
+    "fastapi>=0.115.0",
     "filters>=1.3.2",
     "httpx>=0.28.1",
     "lxml>=6.1.0",
@@ -17,6 +18,17 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "rich>=15.0.0",
     "typer>=0.25.1",
+    "uvicorn>=0.34.0",
+]
+
+[project.optional-dependencies]
+# Durable, out-of-process job queue (JobRunr-style) backed by Redis + RQ.
+# Install with: uv sync --extra rq. The in-process 'memory' backend (the
+# default, JOB_BACKEND=memory) needs none of this; these are only required to
+# run with JOB_BACKEND=rq or to run an `rq worker`.
+rq = [
+    "rq>=2.0.0",
+    "redis>=5.0.0",
 ]
 
 [build-system]

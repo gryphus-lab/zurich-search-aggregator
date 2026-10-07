@@ -4,19 +4,13 @@ from typing import List, Optional
 
 from playwright.sync_api import sync_playwright
 
+from ..locations import coords_for, default_zurich_quartiers
 from ..logger import logger
 from ..models import ApartmentListing
-from ..utils import normalize_neighborhood, parse_available_from
+from ..utils import parse_available_from
 
 
-NEIGHBORHOOD_COORDS = {
-    "Oerlikon": (47.41408, 8.54450),
-    "Seebach": (47.4236, 8.5339),
-    "Wipkingen": (47.3904, 8.5268),
-    "Altstetten": (47.3882, 8.4934),
-}
-
-_DEFAULT_NEIGHBORHOODS = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+_DEFAULT_NEIGHBORHOODS = default_zurich_quartiers()
 
 
 def _extract_price(text: str) -> float:
@@ -38,7 +32,11 @@ def _extract_title(text: str) -> str:
         if match:
             return match.group(1)
 
-    for size_pattern in (r"(\d+(?:[.,]\d+)?)\s*m²", r"(\d+(?:[.,]\d+)?)\s*m2", r"(\d+(?:[.,]\d+)?)\s*sqm"):
+    for size_pattern in (
+        r"(\d+(?:[.,]\d+)?)\s*m²",
+        r"(\d+(?:[.,]\d+)?)\s*m2",
+        r"(\d+(?:[.,]\d+)?)\s*sqm",
+    ):
         match = re.search(size_pattern, text, re.I)
         if match:
             return f"{match.group(1).replace(',', '.')}m² Apartment"
@@ -58,7 +56,11 @@ def _extract_available_from(text: str) -> Optional[date]:
 
 
 def _extract_size_m2(text: str) -> Optional[float]:
-    for size_pattern in (r"(\d+(?:[.,]\d+)?)\s*m²", r"(\d+(?:[.,]\d+)?)\s*m2", r"(\d+(?:[.,]\d+)?)\s*sqm"):
+    for size_pattern in (
+        r"(\d+(?:[.,]\d+)?)\s*m²",
+        r"(\d+(?:[.,]\d+)?)\s*m2",
+        r"(\d+(?:[.,]\d+)?)\s*sqm",
+    ):
         match = re.search(size_pattern, text, re.I)
         if match:
             return float(match.group(1).replace(",", "."))
@@ -87,7 +89,14 @@ def _debug_first_card(cards) -> None:
         logger.debug("FIRST UMS CARD PREVIEW unavailable; skipping debug snapshot")
 
 
-def _listing_from_card(card, neigh: str, price_min: int, price_max: int, move_in_from: Optional[date], index: int) -> Optional[ApartmentListing]:
+def _listing_from_card(
+    card,
+    neigh: str,
+    price_min: int,
+    price_max: int,
+    move_in_from: Optional[date],
+    index: int,
+) -> Optional[ApartmentListing]:
     text = card.inner_text().strip()
     if len(text) < 30:
         return None
@@ -128,9 +137,10 @@ def _listing_from_card(card, neigh: str, price_min: int, price_max: int, move_in
     )
 
 
-def _scrape_neighborhood_cards(page, neigh: str, price_min: int, price_max: int, move_in_from: Optional[date]) -> List[ApartmentListing]:
-    normalized_neigh = normalize_neighborhood(neigh)
-    lat, lng = NEIGHBORHOOD_COORDS.get(normalized_neigh, (47.3769, 8.5417))
+def _scrape_neighborhood_cards(
+    page, neigh: str, price_min: int, price_max: int, move_in_from: Optional[date]
+) -> List[ApartmentListing]:
+    lat, lng = coords_for(neigh)
     url = f"https://www.ums.ch/furnished-apartments/{neigh}/{lat}/{lng}/"
     logger.info(f"Scraping UMS → {neigh} | URL: {url}")
 
@@ -141,14 +151,18 @@ def _scrape_neighborhood_cards(page, neigh: str, price_min: int, price_max: int,
         page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
         page.wait_for_timeout(4000)
 
-    cards = page.locator("div.ad, article, div.listing-item, div.search-result, div[class*='listing']").all()
+    cards = page.locator(
+        "div.ad, article, div.listing-item, div.search-result, div[class*='listing']"
+    ).all()
     logger.info(f"Found {len(cards)} potential cards for {neigh}")
     _debug_first_card(cards)
 
     results: List[ApartmentListing] = []
     for index, card in enumerate(cards):
         try:
-            listing = _listing_from_card(card, neigh, price_min, price_max, move_in_from, index)
+            listing = _listing_from_card(
+                card, neigh, price_min, price_max, move_in_from, index
+            )
         except Exception:
             continue
         if listing is not None:
@@ -169,7 +183,9 @@ def scrape_ums(
         neighborhoods = _DEFAULT_NEIGHBORHOODS
 
     results: List[ApartmentListing] = []
-    logger.info(f"Starting UMS scraper | Price: {price_min}-{price_max} CHF | Neighborhoods: {neighborhoods}")
+    logger.info(
+        f"Starting UMS scraper | Price: {price_min}-{price_max} CHF | Neighborhoods: {neighborhoods}"
+    )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -181,7 +197,11 @@ def scrape_ums(
 
         for neigh in neighborhoods:
             try:
-                results.extend(_scrape_neighborhood_cards(page, neigh, price_min, price_max, move_in_from))
+                results.extend(
+                    _scrape_neighborhood_cards(
+                        page, neigh, price_min, price_max, move_in_from
+                    )
+                )
             except Exception as e:
                 logger.error(f"UMS {neigh} failed: {e}")
 

@@ -160,9 +160,14 @@ def scrape_blueground(
     Returns:
         List[ApartmentListing]: Collected apartment listings parsed from Blueground cards.
     """
-    if neighborhoods is None:
-        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+    from ..locations import default_zurich_quartiers
 
+    if neighborhoods is None:
+        neighborhoods = default_zurich_quartiers()
+
+    # Blueground operates only inside the city of Zurich, so only city quartiers
+    # have slugs. Metro municipalities are skipped here (covered by the other
+    # sources) rather than treated as an error.
     slug_map = {
         "Oerlikon": "oerlikon",
         "Seebach": "seebach",
@@ -188,7 +193,10 @@ def scrape_blueground(
         for neigh in neighborhoods:
             slug = slug_map.get(neigh)
             if not slug:
-                logger.warning(f"No slug mapping for {neigh}")
+                logger.debug(
+                    f"Blueground has no city coverage for {neigh}; skipping "
+                    "(handled by other sources)"
+                )
                 continue
 
             url = (

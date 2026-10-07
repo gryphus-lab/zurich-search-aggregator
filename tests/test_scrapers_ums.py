@@ -95,14 +95,19 @@ def test_scrape_ums_valid_card_returns_listing(mock_sync_playwright):
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")
-def test_scrape_ums_normalizes_neighborhood_for_coordinates_but_preserves_url(mock_sync_playwright):
+def test_scrape_ums_normalizes_neighborhood_for_coordinates_but_preserves_url(
+    mock_sync_playwright,
+):
     mock_sync_playwright.return_value = _make_playwright_mock(cards=[])
 
     scrape_ums(neighborhoods=["oerlikon"])
 
     page = mock_sync_playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_context.return_value.new_page.return_value
     requested_url = page.goto.call_args.args[0]
-    assert requested_url == "https://www.ums.ch/furnished-apartments/oerlikon/47.41408/8.5445/"
+    assert (
+        requested_url
+        == "https://www.ums.ch/furnished-apartments/oerlikon/47.41408/8.5445/"
+    )
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")

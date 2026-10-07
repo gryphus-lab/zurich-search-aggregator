@@ -9,13 +9,18 @@ from rich.console import Console
 from rich.table import Table
 
 from .models import ApartmentListing
-from .scrapers import run_all_scrapers
+from .scrapers import AVAILABLE_SOURCES, normalize_sources, run_all_scrapers
 from .filters import apply_filters
+from .locations import default_metro_search, default_zurich_quartiers
 from .logger import logger
 
 app = typer.Typer(
     name="zurich-apartment-aggregator",
-    help="Find month-to-month serviced apartments in Oerlikon, Seebach, Wipkingen, Altstetten",
+    help=(
+        "Find apartments across the Zurich metro region. Defaults to the city "
+        "quartiers (Oerlikon, Seebach, Wipkingen, Altstetten); pass --metro to "
+        "search the whole metro region, or --neigh to target specific locations."
+    ),
     add_completion=False,
 )
 
@@ -31,24 +36,37 @@ def _main_impl(
     output_json: Path = Path("results/latest.json"),
     export_csv: bool = False,
     max_pages: int = 5,
+    metro: bool = False,
+    sources: Optional[List[str]] = None,
 ) -> None:
     """
-    Run the CLI search for short-term, furnished apartments in specified Zurich neighborhoods and present/save filtered results.
+    Run the CLI search for apartments across the Zurich metro region and present/save filtered results.
 
-    Filters listings by price, move-in date, neighborhoods and month-to-month friendliness, deduplicates results, writes JSON to the provided path (creating parent directories), optionally exports a CSV, and prints a summary table to the console.
+    Filters listings by price, move-in date, locations and month-to-month friendliness, deduplicates results, writes JSON to the provided path (creating parent directories), optionally exports a CSV, and prints a summary table to the console.
 
     Parameters:
         price_min (int): Minimum monthly rent in CHF.
         price_max (int): Maximum monthly rent in CHF.
         move_in_from (Optional[str]): Earliest move-in date in `YYYY-MM-DD` format; if provided and invalid, the command exits with code 1.
-        neighborhoods (Optional[List[str]]): List of neighborhoods to search.
+        neighborhoods (Optional[List[str]]): Locations to search. When None, defaults to the city quartiers, or the full metro region when `metro` is True.
         only_flexible (bool): Filter for month-to-month friendly listings.
         output_json (Path): File path to write JSON results; parent directories will be created if necessary.
         export_csv (bool): If true, also write a CSV file alongside the JSON.
-        max_pages (int): Maximum pages to scrape per neighborhood on Immoscout.
+        max_pages (int): Maximum result pages to scrape per location.
+        metro (bool): When True and no explicit neighborhoods are given, search the whole Zurich metro region.
+        sources (Optional[List[str]]): Which aggregators to query (any of
+            flatfox, blueground, homegate, ums). When None or empty, all run.
+            An unknown source name exits with code 1.
     """
     if neighborhoods is None:
-        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+        neighborhoods = default_metro_search() if metro else default_zurich_quartiers()
+
+    # Resolve / validate the selected sources (empty -> all).
+    try:
+        selected_sources = normalize_sources(sources)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
 
     # Convert string date to datetime.date if provided
     move_in_date: Optional[date] = None
@@ -62,16 +80,17 @@ def _main_impl(
             raise typer.Exit(code=1)
 
     logger.info(
-        f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, only_flexible={only_flexible}, max_pages={max_pages}"
+        f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, sources={selected_sources}, only_flexible={only_flexible}, max_pages={max_pages}"
     )
 
-    # === 1. Scrape all sources ===
+    # === 1. Scrape selected sources ===
     raw_listings: List[ApartmentListing] = run_all_scrapers(
         price_min=price_min,
         price_max=price_max,
         neighborhoods=neighborhoods,
         move_in_from=move_in_date,
         max_pages=max_pages,
+        sources=selected_sources,
     )
 
     # === 2. Apply filters + deduplication ===
@@ -145,11 +164,31 @@ def main(
     move_in_from: Optional[str] = typer.Option(
         None, "--move-in", "-d", help="Earliest move-in date (YYYY-MM-DD)"
     ),
-    neighborhoods: List[str] = typer.Option(
-        ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"],
+    neighborhoods: Optional[List[str]] = typer.Option(
+        None,
         "--neigh",
         "-n",
-        help="Neighborhoods to search (space-separated)",
+        help=(
+            "Locations to search (space-separated). Defaults to the city "
+            "quartiers, or the full metro region when --metro is set."
+        ),
+    ),
+    metro: bool = typer.Option(
+        False,
+        "--metro",
+        help=(
+            "Search the whole Zurich metro region (all corridors) instead of "
+            "only the city quartiers. Ignored when --neigh is given."
+        ),
+    ),
+    sources: Optional[List[str]] = typer.Option(
+        None,
+        "--source",
+        "-s",
+        help=(
+            "Aggregator(s) to query (repeatable): "
+            f"{', '.join(AVAILABLE_SOURCES)}. Defaults to all."
+        ),
     ),
     only_flexible: bool = typer.Option(
         True,
@@ -161,7 +200,7 @@ def main(
     ),
     export_csv: bool = typer.Option(False, "--csv", help="Also export as CSV"),
     max_pages: int = typer.Option(
-        5, "--pages", help="Max pages per neighborhood on Immoscout"
+        5, "--pages", help="Max result pages to scrape per location"
     ),
 ) -> None:
     """Typer CLI wrapper for the main function."""
@@ -174,6 +213,8 @@ def main(
         output_json=output_json,
         export_csv=export_csv,
         max_pages=max_pages,
+        metro=metro,
+        sources=sources,
     )
 
 

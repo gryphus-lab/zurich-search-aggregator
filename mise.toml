@@ -52,9 +52,9 @@ run = "uv run pytest tests --cov=. --cov-report=term-missing --cov-report=xml:co
 depends = ["bootstrap"]
 
 [tasks.docker-compose]
-description = "Start services with Docker Compose in detached mode"
-run = "docker compose up -d"
+description = "Start the aggregator REST API via Docker Compose (http://localhost:8000)"
+run = "docker compose up --build -d"
 
 [tasks.docker-build]
-description = "Build the Docker image with pinned n8n version"
-run = "docker build -t zurich-search-aggregator:latest -f Dockerfile . --build-arg N8N_VERSION=2.15.0"
+description = "Build the aggregator Docker image"
+run = "docker build -t zurich-search-aggregator:latest -f Dockerfile ."
