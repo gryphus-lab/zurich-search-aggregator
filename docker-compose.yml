@@ -5,14 +5,19 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: zurich-search-aggregator
+    restart: unless-stopped
     environment:
       - TZ=Europe/Zurich
-    # The aggregator is a batch CLI, not a long-running service: it runs a
-    # scrape, writes results, and exits (so no container stays "running" -
-    # that is expected). The default below runs a metro-wide search; override
-    # with your own args, e.g.:
-    #   docker compose run --rm aggregator --neigh Thalwil --max 2800 --csv
-    command: ["--metro", "--json", "/app/results/latest.json"]
+      - HOST=0.0.0.0
+      - PORT=8000
+    ports:
+      - "8000:8000"
     # Persist scrape output on the host.
     volumes:
       - ./results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health').status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s

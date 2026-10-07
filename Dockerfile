@@ -34,7 +34,12 @@ RUN uv sync --frozen --no-dev
 RUN mkdir -p /app/results
 VOLUME ["/app/results"]
 
-# Default entrypoint runs the aggregator CLI; args pass straight through,
-# e.g.  docker run --rm zurich-search-aggregator:latest --metro --min 1700
-ENTRYPOINT ["uv", "run", "--no-dev", "python", "-m", "src.aggregator.main"]
-CMD ["--help"]
+# Run as a long-lived REST service (FastAPI + uvicorn) on port 8000.
+ENV HOST=0.0.0.0 \
+    PORT=8000
+EXPOSE 8000
+
+# POST /search runs a scrape; GET /health, /sources, /locations are metadata.
+# The one-shot CLI is still available via:
+#   docker run --rm --entrypoint uv <image> run --no-dev python -m src.aggregator.main --metro
+ENTRYPOINT ["uv", "run", "--no-dev", "uvicorn", "src.aggregator.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -112,27 +112,63 @@ Example (show all listings, not just flexible):
 python -m src.aggregator.main --min 1700 --max 3000 --all
 ```
 
+## REST API
+
+The aggregator also runs as a long-lived HTTP service (FastAPI + uvicorn),
+exposing the same search parameters as the CLI.
+
+```bash
+# Run locally
+uv run uvicorn src.aggregator.api:app --host 0.0.0.0 --port 8000
+# or: uv run python -m src.aggregator.api
+```
+
+Endpoints:
+
+- `GET /health` - liveness probe.
+- `GET /sources` - the available aggregators.
+- `GET /locations` - searchable locations grouped by metro corridor.
+- `POST /search` - run a search; JSON body mirrors the CLI options.
+- Interactive docs at `GET /docs` (OpenAPI/Swagger UI).
+
+```bash
+# Whole metro region, Flatfox + Homegate only
+curl -X POST http://localhost:8000/search \
+  -H 'Content-Type: application/json' \
+  -d '{"metro": true, "price_min": 1700, "price_max": 3500,
+       "sources": ["flatfox", "homegate"]}'
+```
+
+Request fields: `price_min`, `price_max`, `move_in_from` (YYYY-MM-DD),
+`neighborhoods` (list; overrides `metro`), `metro`, `only_flexible`,
+`max_pages`, `sources`. An unknown source returns HTTP 422.
+
 ### Docker
 
-The aggregator is a **batch CLI**, not a long-running server: it runs a scrape,
-writes results, and exits. A finished container does **not** stay running - that
-is expected (unlike a web service, there is nothing to keep up).
+The image runs the REST API as a long-lived service on port 8000.
 
 ```bash
 # Build the image
 mise docker-build          # or: docker build -t zurich-search-aggregator:latest .
 
-# Run a scrape via Compose (writes to ./results on the host)
-mise docker-compose                       # default: metro-wide search
-mise docker-compose -- --neigh Thalwil --max 2800 --csv   # custom args
+# Start the service (detached) at http://localhost:8000
+mise docker-compose        # docker compose up --build -d
+
+curl http://localhost:8000/health
+docker compose down        # stop it
 
 # Or run the image directly
-docker run --rm -v "$PWD/results:/app/results" \
-  zurich-search-aggregator:latest --metro --min 1700 --max 3500
+docker run --rm -p 8000:8000 -v "$PWD/results:/app/results" \
+  zurich-search-aggregator:latest
 ```
 
-Results land in `./results` on the host. Because the job exits when done,
-`docker ps` will show no container afterwards - check `./results` for output.
+The one-shot CLI is still available from the same image:
+
+```bash
+docker run --rm -v "$PWD/results:/app/results" \
+  --entrypoint uv zurich-search-aggregator:latest \
+  run --no-dev python -m src.aggregator.main --metro --min 1700 --max 3500 --csv
+```
 
 ### Output
 
