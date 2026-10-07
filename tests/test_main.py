@@ -288,3 +288,40 @@ def test_main_explicit_neighborhoods_override_metro(
 
     neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
     assert neighborhoods == ["Dietikon"]
+
+
+# ---------------------------------------------------------------------------
+# Source selection (CLI)
+# ---------------------------------------------------------------------------
+
+
+def test_main_default_runs_all_sources(mock_scrapers, mock_filters, tmp_path):
+    mock_scrapers.return_value = []
+    mock_filters.return_value = []
+
+    main(output_json=tmp_path / "out.json")
+
+    assert mock_scrapers.call_args.kwargs["sources"] == [
+        "flatfox",
+        "blueground",
+        "homegate",
+        "ums",
+    ]
+
+
+def test_main_source_subset_passed_through(mock_scrapers, mock_filters, tmp_path):
+    mock_scrapers.return_value = []
+    mock_filters.return_value = []
+
+    main(output_json=tmp_path / "out.json", sources=["homegate", "flatfox"])
+
+    # Canonical order is restored by normalize_sources.
+    assert mock_scrapers.call_args.kwargs["sources"] == ["flatfox", "homegate"]
+
+
+def test_main_unknown_source_exits(mock_console):
+    with pytest.raises(typer.Exit) as e:
+        main(sources=["zillow"])
+
+    assert e.value.exit_code == 1
+    mock_console.print.assert_called_once()

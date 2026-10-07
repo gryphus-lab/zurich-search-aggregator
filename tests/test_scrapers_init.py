@@ -465,3 +465,88 @@ def test_run_all_scrapers_returns_empty_when_all_scrapers_return_nothing(
     )
 
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Source selection
+# ---------------------------------------------------------------------------
+
+import pytest  # noqa: E402
+
+from src.aggregator.scrapers import AVAILABLE_SOURCES, normalize_sources  # noqa: E402
+
+
+def test_normalize_sources_none_returns_all():
+    assert normalize_sources(None) == AVAILABLE_SOURCES
+
+
+def test_normalize_sources_empty_returns_all():
+    assert normalize_sources([]) == AVAILABLE_SOURCES
+
+
+def test_normalize_sources_subset_preserves_canonical_order():
+    # User lists them out of order / mixed case; canonical order is restored.
+    assert normalize_sources(["homegate", "FLATFOX"]) == ["flatfox", "homegate"]
+
+
+def test_normalize_sources_deduplicates():
+    assert normalize_sources(["ums", "ums"]) == ["ums"]
+
+
+def test_normalize_sources_unknown_raises():
+    with pytest.raises(ValueError):
+        normalize_sources(["zillow"])
+
+
+@patch("src.aggregator.scrapers.scrape_ums")
+@patch("src.aggregator.scrapers.scrape_homegate")
+@patch("src.aggregator.scrapers.scrape_blueground")
+@patch("src.aggregator.scrapers.scrape_flatfox")
+def test_run_all_scrapers_runs_only_selected_sources(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
+    mock_flatfox.return_value = [_make_listing("flatfox", "https://flatfox.ch/flat/1")]
+    mock_homegate.return_value = [
+        _make_listing("homegate", "https://www.homegate.ch/listing/2")
+    ]
+    mock_blueground.return_value = []
+    mock_ums.return_value = []
+
+    result = run_all_scrapers(
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        sources=["flatfox", "homegate"],
+    )
+
+    mock_flatfox.assert_called_once()
+    mock_homegate.assert_called_once()
+    mock_blueground.assert_not_called()
+    mock_ums.assert_not_called()
+    assert {r.source for r in result} == {"flatfox", "homegate"}
+
+
+@patch("src.aggregator.scrapers.scrape_ums")
+@patch("src.aggregator.scrapers.scrape_homegate")
+@patch("src.aggregator.scrapers.scrape_blueground")
+@patch("src.aggregator.scrapers.scrape_flatfox")
+def test_run_all_scrapers_single_source(
+    mock_flatfox, mock_blueground, mock_homegate, mock_ums
+):
+    mock_flatfox.return_value = []
+    mock_blueground.return_value = []
+    mock_homegate.return_value = []
+    mock_ums.return_value = [_make_listing("ums", "https://www.ums.ch/listing/9")]
+
+    result = run_all_scrapers(
+        price_min=1700,
+        price_max=3000,
+        neighborhoods=["Oerlikon"],
+        sources=["ums"],
+    )
+
+    mock_flatfox.assert_not_called()
+    mock_blueground.assert_not_called()
+    mock_homegate.assert_not_called()
+    mock_ums.assert_called_once()
+    assert [r.source for r in result] == ["ums"]

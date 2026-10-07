@@ -51,6 +51,7 @@ Common options:
 - `--move-in, -d <YYYY-MM-DD>`: earliest move-in date
 - `--neigh, -n <neigh>...`: locations to search (space-separated). Overrides `--metro`.
 - `--metro`: search the whole Zurich metro region (all corridors) instead of only the city quartiers
+- `--source, -s <name>...`: aggregator(s) to query (repeatable). Defaults to all.
 - `--flexible/--all`: show only flexible listings (default `--flexible`)
 - `--json, -j <path>`: where to write JSON (default `results/latest.json`)
 - `--csv`: also export CSV beside the JSON output
@@ -78,6 +79,22 @@ python -m src.aggregator.main --metro --min 1700 --max 3500
 # Target specific metro towns
 python -m src.aggregator.main --neigh Thalwil Küsnacht Adliswil
 ```
+
+### Sources (aggregators)
+
+By default all aggregators run: **flatfox**, **blueground**, **homegate**, **ums**.
+Use `--source/-s` (repeatable) to query a subset:
+
+```bash
+# Only Flatfox and Homegate
+python -m src.aggregator.main --source flatfox --source homegate
+
+# Only one source, across the whole metro region
+python -m src.aggregator.main --metro -s flatfox
+```
+
+An unknown source name exits with a clear error. Note that Blueground and UMS
+are furnished-serviced-apartment sources and only cover the city of Zurich.
 
 Example (include move-in date and export CSV):
 

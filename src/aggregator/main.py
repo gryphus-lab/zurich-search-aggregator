@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .models import ApartmentListing
-from .scrapers import run_all_scrapers
+from .scrapers import AVAILABLE_SOURCES, normalize_sources, run_all_scrapers
 from .filters import apply_filters
 from .locations import default_metro_search, default_zurich_quartiers
 from .logger import logger
@@ -37,6 +37,7 @@ def _main_impl(
     export_csv: bool = False,
     max_pages: int = 5,
     metro: bool = False,
+    sources: Optional[List[str]] = None,
 ) -> None:
     """
     Run the CLI search for apartments across the Zurich metro region and present/save filtered results.
@@ -53,9 +54,19 @@ def _main_impl(
         export_csv (bool): If true, also write a CSV file alongside the JSON.
         max_pages (int): Maximum result pages to scrape per location.
         metro (bool): When True and no explicit neighborhoods are given, search the whole Zurich metro region.
+        sources (Optional[List[str]]): Which aggregators to query (any of
+            flatfox, blueground, homegate, ums). When None or empty, all run.
+            An unknown source name exits with code 1.
     """
     if neighborhoods is None:
         neighborhoods = default_metro_search() if metro else default_zurich_quartiers()
+
+    # Resolve / validate the selected sources (empty -> all).
+    try:
+        selected_sources = normalize_sources(sources)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
 
     # Convert string date to datetime.date if provided
     move_in_date: Optional[date] = None
@@ -69,16 +80,17 @@ def _main_impl(
             raise typer.Exit(code=1)
 
     logger.info(
-        f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, only_flexible={only_flexible}, max_pages={max_pages}"
+        f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, sources={selected_sources}, only_flexible={only_flexible}, max_pages={max_pages}"
     )
 
-    # === 1. Scrape all sources ===
+    # === 1. Scrape selected sources ===
     raw_listings: List[ApartmentListing] = run_all_scrapers(
         price_min=price_min,
         price_max=price_max,
         neighborhoods=neighborhoods,
         move_in_from=move_in_date,
         max_pages=max_pages,
+        sources=selected_sources,
     )
 
     # === 2. Apply filters + deduplication ===
@@ -169,6 +181,15 @@ def main(
             "only the city quartiers. Ignored when --neigh is given."
         ),
     ),
+    sources: Optional[List[str]] = typer.Option(
+        None,
+        "--source",
+        "-s",
+        help=(
+            "Aggregator(s) to query (repeatable): "
+            f"{', '.join(AVAILABLE_SOURCES)}. Defaults to all."
+        ),
+    ),
     only_flexible: bool = typer.Option(
         True,
         "--flexible/--all",
@@ -193,6 +214,7 @@ def main(
         export_csv=export_csv,
         max_pages=max_pages,
         metro=metro,
+        sources=sources,
     )
 
 
