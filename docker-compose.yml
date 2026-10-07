@@ -2,7 +2,7 @@ services:
   # Default: single API container using the in-process job backend (no broker).
   #   docker compose up
   aggregator:
-    image: zurich-search-aggregator:latest
+    image: zurich-search-aggregator:optimized
     build:
       context: .
       dockerfile: Dockerfile
@@ -43,7 +43,7 @@ services:
 
   # RQ worker: same image, runs the queue consumer instead of the API.
   worker:
-    image: zurich-search-aggregator:latest
+    image: zurich-search-aggregator:optimized
     build:
       context: .
       dockerfile: Dockerfile

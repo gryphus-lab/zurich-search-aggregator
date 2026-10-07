@@ -21,9 +21,7 @@ build
 results
 n8n_data
 
-# Tests and dev-only files (not needed in the runtime image)
-tests
-
+# Tests are included for the optional Dockerfile `test` target.
 # Editor / OS cruft
 .idea
 .vscode
