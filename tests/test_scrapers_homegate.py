@@ -756,7 +756,8 @@ from src.aggregator.scrapers.homegate import _build_homegate_url  # noqa: E402
 def test_build_url_city_quartier_uses_district_path():
     url = _build_homegate_url("Oerlikon", 1700, 3000)
     assert "/rent/apartment/district-oerlikon/matching-list" in url
-    assert "ag=1700" in url and "ah=3000" in url
+    assert "ag=1700" in url
+    assert "ah=3000" in url
 
 
 def test_build_url_uses_apartment_not_furnished_dwelling():

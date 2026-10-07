@@ -32,11 +32,20 @@ from typing import Dict, List, Optional, Tuple
 ZURICH_CENTRE: Tuple[float, float] = (47.3769, 8.5417)
 
 
+# Metro corridors (grouping labels).
+CORRIDOR_CITY = "Zurich City"
+CORRIDOR_WEST = "West (Limmattal / A1)"
+CORRIDOR_NORTH = "North / North-East (Glattal)"
+CORRIDOR_NORTHWEST = "North-West (Furttal)"
+CORRIDOR_SOUTH = "South (Sihltal / Left Bank)"
+CORRIDOR_EAST = "East (Gold Coast)"
+
+
 @dataclass(frozen=True)
 class Location:
     canonical: str
     coords: Tuple[float, float] = ZURICH_CENTRE
-    corridor: str = "Zurich City"
+    corridor: str = CORRIDOR_CITY
     is_zurich_quartier: bool = False
     aliases: Tuple[str, ...] = field(default_factory=tuple)
 
@@ -49,36 +58,36 @@ class Location:
 
 _LOCATIONS: Tuple[Location, ...] = (
     # --- City of Zurich quartiers (original default set) ------------------
-    Location("Oerlikon", (47.41408, 8.54450), "Zurich City", True),
-    Location("Seebach", (47.42360, 8.53390), "Zurich City", True),
-    Location("Wipkingen", (47.39040, 8.52680), "Zurich City", True),
-    Location("Altstetten", (47.38820, 8.49340), "Zurich City", True),
+    Location("Oerlikon", (47.41408, 8.54450), CORRIDOR_CITY, True),
+    Location("Seebach", (47.42360, 8.53390), CORRIDOR_CITY, True),
+    Location("Wipkingen", (47.39040, 8.52680), CORRIDOR_CITY, True),
+    Location("Altstetten", (47.38820, 8.49340), CORRIDOR_CITY, True),
     # --- West Corridor (Limmattal / A1) -----------------------------------
-    Location("Schlieren", (47.39660, 8.44760), "West (Limmattal / A1)"),
-    Location("Dietikon", (47.40150, 8.40030), "West (Limmattal / A1)"),
-    Location("Urdorf", (47.38610, 8.42660), "West (Limmattal / A1)"),
-    Location("Oberengstringen", (47.41000, 8.46340), "West (Limmattal / A1)"),
-    Location("Unterengstringen", (47.41160, 8.44660), "West (Limmattal / A1)"),
-    Location("Geroldswil", (47.42020, 8.41280), "West (Limmattal / A1)"),
+    Location("Schlieren", (47.39660, 8.44760), CORRIDOR_WEST),
+    Location("Dietikon", (47.40150, 8.40030), CORRIDOR_WEST),
+    Location("Urdorf", (47.38610, 8.42660), CORRIDOR_WEST),
+    Location("Oberengstringen", (47.41000, 8.46340), CORRIDOR_WEST),
+    Location("Unterengstringen", (47.41160, 8.44660), CORRIDOR_WEST),
+    Location("Geroldswil", (47.42020, 8.41280), CORRIDOR_WEST),
     # --- North & North-East Corridor (Glattal / A1 & A51) -----------------
-    Location("Wallisellen", (47.41200, 8.59570), "North / North-East (Glattal)"),
+    Location("Wallisellen", (47.41200, 8.59570), CORRIDOR_NORTH),
     Location(
         "Dübendorf",
         (47.39730, 8.61850),
-        "North / North-East (Glattal)",
+        CORRIDOR_NORTH,
         aliases=("dubendorf", "duebendorf"),
     ),
     Location(
         "Opfikon",
         (47.42870, 8.57150),
-        "North / North-East (Glattal)",
+        CORRIDOR_NORTH,
         aliases=("glattbrugg", "opfikon glattbrugg", "opfikon-glattbrugg"),
     ),
-    Location("Kloten", (47.45170, 8.58520), "North / North-East (Glattal)"),
+    Location("Kloten", (47.45170, 8.58520), CORRIDOR_NORTH),
     Location(
         "Wangen-Brüttisellen",
         (47.41070, 8.63760),
-        "North / North-East (Glattal)",
+        CORRIDOR_NORTH,
         aliases=(
             "wangen bruttisellen",
             "wangen-bruttisellen",
@@ -87,50 +96,50 @@ _LOCATIONS: Tuple[Location, ...] = (
             "wangen",
         ),
     ),
-    Location("Dietlikon", (47.42080, 8.61900), "North / North-East (Glattal)"),
-    Location("Volketswil", (47.39000, 8.68100), "North / North-East (Glattal)"),
+    Location("Dietlikon", (47.42080, 8.61900), CORRIDOR_NORTH),
+    Location("Volketswil", (47.39000, 8.68100), CORRIDOR_NORTH),
     # --- North-West Corridor (Furttal / A1) -------------------------------
-    Location("Regensdorf", (47.43430, 8.46700), "North-West (Furttal)"),
+    Location("Regensdorf", (47.43430, 8.46700), CORRIDOR_NORTHWEST),
     Location(
         "Dällikon",
         (47.43500, 8.43530),
-        "North-West (Furttal)",
+        CORRIDOR_NORTHWEST,
         aliases=("dallikon", "daellikon"),
     ),
     Location(
         "Buchs (ZH)",
         (47.43090, 8.43330),
-        "North-West (Furttal)",
+        CORRIDOR_NORTHWEST,
         aliases=("buchs zh", "buchs"),
     ),
-    Location("Otelfingen", (47.44680, 8.39670), "North-West (Furttal)"),
+    Location("Otelfingen", (47.44680, 8.39670), CORRIDOR_NORTHWEST),
     # --- South Corridor (Sihl Valley & Left Bank / A3) --------------------
-    Location("Adliswil", (47.31000, 8.52570), "South (Sihltal / Left Bank)"),
-    Location("Kilchberg", (47.32330, 8.54260), "South (Sihltal / Left Bank)"),
-    Location("Thalwil", (47.29440, 8.56460), "South (Sihltal / Left Bank)"),
+    Location("Adliswil", (47.31000, 8.52570), CORRIDOR_SOUTH),
+    Location("Kilchberg", (47.32330, 8.54260), CORRIDOR_SOUTH),
+    Location("Thalwil", (47.29440, 8.56460), CORRIDOR_SOUTH),
     Location(
         "Rüschlikon",
         (47.30560, 8.55300),
-        "South (Sihltal / Left Bank)",
+        CORRIDOR_SOUTH,
         aliases=("ruschlikon", "rueschlikon"),
     ),
     Location(
         "Langnau am Albis",
         (47.28700, 8.56700),
-        "South (Sihltal / Left Bank)",
+        CORRIDOR_SOUTH,
         aliases=("langnau", "langnau a. albis", "langnau am albis"),
     ),
     # --- East Corridor (Right Bank / Gold Coast) --------------------------
-    Location("Zollikon", (47.34090, 8.57300), "East (Gold Coast)"),
-    Location("Zumikon", (47.33190, 8.61560), "East (Gold Coast)"),
+    Location("Zollikon", (47.34090, 8.57300), CORRIDOR_EAST),
+    Location("Zumikon", (47.33190, 8.61560), CORRIDOR_EAST),
     Location(
         "Küsnacht",
         (47.31770, 8.58490),
-        "East (Gold Coast)",
+        CORRIDOR_EAST,
         aliases=("kusnacht", "kuesnacht", "küsnacht zh", "kusnacht zh"),
     ),
     Location(
-        "Erlenbach", (47.30320, 8.59350), "East (Gold Coast)", aliases=("erlenbach zh",)
+        "Erlenbach", (47.30320, 8.59350), CORRIDOR_EAST, aliases=("erlenbach zh",)
     ),
 )
 
