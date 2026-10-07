@@ -1,0 +1,31 @@
+# Version control / CI
+.git
+.github
+.gitignore
+.githooks
+
+# Python caches / virtualenvs
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+htmlcov
+.coverage
+coverage.xml
+
+# Local build artifacts and scraper output
+dist
+build
+results
+n8n_data
+
+# Tests and dev-only files (not needed in the runtime image)
+tests
+
+# Editor / OS cruft
+.idea
+.vscode
+*.iml
+.DS_Store
