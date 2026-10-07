@@ -249,3 +249,42 @@ def test_main_limits_table_to_15_rows(
 
     # We can't easily inspect Table rows, but we ensure no crash and print called
     assert mock_console.print.called
+
+
+# ---------------------------------------------------------------------------
+# Metro-region expansion
+# ---------------------------------------------------------------------------
+
+
+def test_main_default_searches_city_quartiers(mock_scrapers, mock_filters, tmp_path):
+    mock_scrapers.return_value = []
+    mock_filters.return_value = []
+
+    main(output_json=tmp_path / "out.json")
+
+    neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
+    assert neighborhoods == ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+
+
+def test_main_metro_flag_expands_to_full_region(mock_scrapers, mock_filters, tmp_path):
+    mock_scrapers.return_value = []
+    mock_filters.return_value = []
+
+    main(output_json=tmp_path / "out.json", metro=True)
+
+    neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
+    assert len(neighborhoods) == 30
+    for town in ["Schlieren", "Thalwil", "Opfikon", "Küsnacht", "Regensdorf"]:
+        assert town in neighborhoods
+
+
+def test_main_explicit_neighborhoods_override_metro(
+    mock_scrapers, mock_filters, tmp_path
+):
+    mock_scrapers.return_value = []
+    mock_filters.return_value = []
+
+    main(output_json=tmp_path / "out.json", neighborhoods=["Dietikon"], metro=True)
+
+    neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
+    assert neighborhoods == ["Dietikon"]

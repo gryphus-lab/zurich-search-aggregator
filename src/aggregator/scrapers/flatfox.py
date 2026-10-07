@@ -1,6 +1,7 @@
 import re
 from datetime import date
 from typing import List, Optional
+from urllib.parse import quote_plus
 
 from playwright.sync_api import sync_playwright
 
@@ -103,22 +104,34 @@ def scrape_flatfox(
     neighborhoods: List[str] = None,
     move_in_from: Optional[date] = None,
     max_pages: int = 5,
+    furnished_only: bool = False,
 ) -> List[ApartmentListing]:
     """
-    Scrape furnished apartment listings from Flatfox for the specified neighborhoods and price range.
+    Scrape apartment listings from Flatfox for the specified locations and price range.
+
+    By default this searches *all* apartment types (studios, lofts, attic /
+    maisonette, etc.) across the whole Zurich metro region, furnished or not.
+    Set ``furnished_only=True`` to restrict to furnished listings.
 
     Parameters:
         price_min (int): Minimum monthly rent (CHF) to include.
         price_max (int): Maximum monthly rent (CHF) to include.
-        neighborhoods (List[str] | None): Neighborhood names to search; defaults to ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"] when None.
-        move_in_from (date | None): If provided, exclude listings whose parsed available-from date is earlier than this date.
-        max_pages (int): Maximum number of paginated search result pages to request per neighborhood.
+        neighborhoods (List[str] | None): Location names to search; defaults to
+            the full Zurich metro region when None.
+        move_in_from (date | None): If provided, exclude listings whose parsed
+            available-from date is earlier than this date.
+        max_pages (int): Maximum number of paginated search result pages to
+            request per location.
+        furnished_only (bool): If True, restrict results to furnished listings.
 
     Returns:
-        List[ApartmentListing]: Collected apartment listings that match the furnished, neighborhood, price, and move-in filters.
+        List[ApartmentListing]: Collected apartment listings matching the
+        location, price, and move-in filters.
     """
+    from ..locations import default_metro_search
+
     if neighborhoods is None:
-        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+        neighborhoods = default_metro_search()
 
     results: List[ApartmentListing] = []
 
@@ -132,15 +145,17 @@ def scrape_flatfox(
         page = context.new_page()
 
         for neigh in neighborhoods:
+            query = quote_plus(f"{neigh}, Zürich")
             base_url = (
                 f"https://flatfox.ch/en/search/"
-                f"?query={neigh}+Zürich"
+                f"?query={query}"
                 f"&offer_type=RENT"
                 f"&object_category=APARTMENT"
                 f"&min_price={price_min}"
                 f"&max_price={price_max}"
-                f"&is_furnished=true"
             )
+            if furnished_only:
+                base_url += "&is_furnished=true"
 
             logger.info(
                 f"Scraping Flatfox → {neigh} | {price_min}-{price_max} CHF (furnished)"

@@ -88,7 +88,9 @@ def apply_filters(
         return []
 
     if neighborhoods is None:
-        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+        from .locations import default_zurich_quartiers
+
+        neighborhoods = default_zurich_quartiers()
 
     normalized_neighs = {normalize_neighborhood(n) for n in neighborhoods}
     seen = set()

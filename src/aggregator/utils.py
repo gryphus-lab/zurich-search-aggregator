@@ -117,20 +117,27 @@ def _try_parse_de_month(date_str: str) -> Optional[date]:
 
 def normalize_neighborhood(neigh: str) -> str:
     """
-    Normalize a neighborhood name to a canonical, title-cased form for known Swiss neighborhoods.
+    Normalize a neighborhood / municipality name to its canonical form.
+
+    Known locations across the whole Zurich metro region (city quartiers plus
+    the surrounding municipalities and their alternative spellings) resolve to
+    their canonical name via the central location registry. Unknown values fall
+    back to a cleaned, title-cased form so arbitrary input is still usable.
 
     Parameters:
-        neigh (str): Input neighborhood name; may include leading "quartier-" prefix, spaces, or mixed case.
+        neigh (str): Input name; may include a leading "quartier-" prefix, a
+            "Zürich" suffix, mixed case, or alternative spellings.
 
     Returns:
-        str: Canonical neighborhood name when recognized (e.g., "Oerlikon"); otherwise the input converted to title case.
+        str: Canonical name when recognized (e.g., "Oerlikon", "Küsnacht");
+            otherwise the input converted to title case.
     """
-    mapping = {
-        "oerlikon": "Oerlikon",
-        "seebach": "Seebach",
-        "wipkingen": "Wipkingen",
-        "altstetten": "Altstetten",
-    }
+    from .locations import canonical_name
+
+    canonical = canonical_name(neigh)
+    if canonical:
+        return canonical
+
     key = (
         neigh.lower()
         .strip()
@@ -139,7 +146,7 @@ def normalize_neighborhood(neigh: str) -> str:
         .replace("zürich", "")
         .rstrip("-")
     )
-    return mapping.get(key, key.replace("-", " ").title())
+    return key.replace("-", " ").title()
 
 
 def is_furnished_friendly(text: str) -> bool:

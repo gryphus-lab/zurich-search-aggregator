@@ -49,11 +49,35 @@ Common options:
 - `--min, -m <int>`: minimum monthly rent (CHF)
 - `--max, -M <int>`: maximum monthly rent (CHF)
 - `--move-in, -d <YYYY-MM-DD>`: earliest move-in date
-- `--neigh, -n <neigh>...`: neighborhoods to search (space-separated)
+- `--neigh, -n <neigh>...`: locations to search (space-separated). Overrides `--metro`.
+- `--metro`: search the whole Zurich metro region (all corridors) instead of only the city quartiers
 - `--flexible/--all`: show only flexible listings (default `--flexible`)
 - `--json, -j <path>`: where to write JSON (default `results/latest.json`)
 - `--csv`: also export CSV beside the JSON output
-- `--pages <int>`: max pages per neighborhood (currently used by scrapers where applicable)
+- `--pages <int>`: max result pages per location (used by scrapers where applicable)
+
+### Search area
+
+Without `--neigh`, the search defaults to the city of Zurich quartiers
+(Oerlikon, Seebach, Wipkingen, Altstetten). Pass `--metro` to search the full
+Zurich metro region across all corridors:
+
+- **West (Limmattal / A1):** Schlieren, Dietikon, Urdorf, Oberengstringen, Unterengstringen, Geroldswil
+- **North / North-East (Glattal):** Wallisellen, Dübendorf, Opfikon (Glattbrugg), Kloten, Wangen-Brüttisellen, Dietlikon, Volketswil
+- **North-West (Furttal):** Regensdorf, Dällikon, Buchs (ZH), Otelfingen
+- **South (Sihltal / Left Bank):** Adliswil, Kilchberg, Thalwil, Rüschlikon, Langnau am Albis
+- **East (Gold Coast):** Zollikon, Zumikon, Küsnacht, Erlenbach
+
+All apartment types are included (furnished and unfurnished). The location
+registry lives in `src/aggregator/locations.py`; add or adjust entries there.
+
+```bash
+# Search the whole metro region
+python -m src.aggregator.main --metro --min 1700 --max 3500
+
+# Target specific metro towns
+python -m src.aggregator.main --neigh Thalwil Küsnacht Adliswil
+```
 
 Example (include move-in date and export CSV):
 

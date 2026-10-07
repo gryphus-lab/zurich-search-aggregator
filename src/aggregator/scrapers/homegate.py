@@ -1,12 +1,35 @@
 import re
 from datetime import date
 from typing import List, Optional
+from urllib.parse import quote
 
 from playwright.sync_api import sync_playwright
 
 from ..models import ApartmentListing
 from ..logger import logger
 from ..utils import parse_available_from
+
+
+def _build_homegate_url(neigh: str, price_min: int, price_max: int) -> str:
+    """
+    Build the Homegate rent-search URL for a location.
+
+    City-of-Zurich quartiers use the ``district-<name>`` path. Independent
+    metro municipalities use Homegate's free-text location search instead, since
+    the district path only resolves inside the city. Uses the ``apartment``
+    category so all apartment types (not only furnished dwellings) are returned.
+    """
+    from ..locations import is_zurich_quartier
+
+    price_q = f"?ag={price_min}&ah={price_max}"
+    if is_zurich_quartier(neigh):
+        return (
+            f"https://www.homegate.ch/en/rent/apartment/district-{neigh.lower()}"
+            f"/matching-list{price_q}"
+        )
+    # Metro municipality: free-text location search.
+    loc = quote(f"{neigh}, Zürich")
+    return f"https://www.homegate.ch/en/rent/apartment/matching-list{price_q}&loc={loc}"
 
 
 def scrape_homegate(
@@ -29,8 +52,10 @@ def scrape_homegate(
     Returns:
         List[ApartmentListing]: Collected apartment listings matching the filters, each populated with metadata such as id, title, price_chf, neighborhood, link, available_from, size_m2, source="homegate", furnished=True, a truncated description_snippet, and raw_data.
     """
+    from ..locations import default_zurich_quartiers
+
     if neighborhoods is None:
-        neighborhoods = ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
+        neighborhoods = default_zurich_quartiers()
 
     results: List[ApartmentListing] = []
 
@@ -47,11 +72,11 @@ def scrape_homegate(
         page = context.new_page()
 
         for neigh in neighborhoods:
-            # Homegate search URL
-            url = (
-                f"https://www.homegate.ch/en/rent/furnished-dwelling/district-{neigh.lower()}/matching-list"
-                f"?ag={price_min}&ah={price_max}"
-            )
+            # Homegate search URL. City quartiers use the district path; metro
+            # municipalities (not Zurich-city districts) use free-text location
+            # search. "apartment" (not "furnished-dwelling") so all apartment
+            # types are returned.
+            url = _build_homegate_url(neigh, price_min, price_max)
 
             logger.info(f"Scraping Homegate → {neigh} | URL: {url}")
 

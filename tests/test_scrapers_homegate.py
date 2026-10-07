@@ -744,3 +744,31 @@ def test_scrape_homegate_price_with_apostrophe_separator(mock_sync_playwright):
 
     assert len(result) == 1
     assert result[0].price_chf == 2500.0
+
+
+# ---------------------------------------------------------------------------
+# URL building: city quartier vs metro municipality
+# ---------------------------------------------------------------------------
+
+from src.aggregator.scrapers.homegate import _build_homegate_url  # noqa: E402
+
+
+def test_build_url_city_quartier_uses_district_path():
+    url = _build_homegate_url("Oerlikon", 1700, 3000)
+    assert "/rent/apartment/district-oerlikon/matching-list" in url
+    assert "ag=1700" in url and "ah=3000" in url
+
+
+def test_build_url_uses_apartment_not_furnished_dwelling():
+    # All apartment types, not only furnished dwellings.
+    url = _build_homegate_url("Oerlikon", 1700, 3000)
+    assert "furnished-dwelling" not in url
+    assert "/rent/apartment/" in url
+
+
+def test_build_url_metro_municipality_uses_location_search():
+    url = _build_homegate_url("Thalwil", 1700, 3000)
+    # Metro towns are not city districts, so no district- path.
+    assert "district-" not in url
+    assert "loc=" in url
+    assert "Thalwil" in url
