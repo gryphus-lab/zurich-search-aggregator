@@ -1,4 +1,6 @@
 services:
+  # Default: single API container using the in-process job backend (no broker).
+  #   docker compose up
   aggregator:
     image: zurich-search-aggregator:latest
     build:
@@ -10,6 +12,9 @@ services:
       - TZ=Europe/Zurich
       - HOST=0.0.0.0
       - PORT=8000
+      # Set JOB_BACKEND=rq (and start the rq profile) for the durable queue.
+      - JOB_BACKEND=${JOB_BACKEND:-memory}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     ports:
       - "8000:8000"
     # Persist scrape output on the host.
@@ -21,3 +26,38 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
+
+  # Durable job queue (JobRunr-style). Start with the "rq" profile:
+  #   JOB_BACKEND=rq docker compose --profile rq up --build
+  redis:
+    image: redis:7-alpine
+    container_name: zurich-search-redis
+    profiles: ["rq"]
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # RQ worker: same image, runs the queue consumer instead of the API.
+  worker:
+    image: zurich-search-aggregator:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zurich-search-worker
+    profiles: ["rq"]
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - TZ=Europe/Zurich
+      - REDIS_URL=redis://redis:6379/0
+      - PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+    volumes:
+      - ./results:/app/results
+    # Override the API entrypoint to run the RQ worker on the "searches" queue.
+    entrypoint: ["rq", "worker", "--url", "redis://redis:6379/0", "searches"]

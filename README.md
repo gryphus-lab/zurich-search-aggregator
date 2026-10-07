@@ -170,6 +170,38 @@ Request fields: `price_min`, `price_max`, `move_in_from` (YYYY-MM-DD),
 `max_pages`, `sources`, `callback_url`. An unknown source returns HTTP 422 at
 submit time.
 
+### Job backends (`JOB_BACKEND`)
+
+Jobs run on one of two interchangeable backends; the API behaves identically
+either way (submit/poll/callback).
+
+- `memory` (default) - in-process thread pool. Zero dependencies, no broker.
+  Great for local/dev and a single instance. Jobs are lost on restart and do
+  not survive across replicas.
+- `rq` - durable, out-of-process queue backed by Redis + [RQ](https://python-rq.org/),
+  a lightweight, JobRunr-style option. Jobs persist in Redis and run in
+  separate worker processes, so they survive API restarts and scale across
+  workers.
+
+Enable RQ:
+
+```bash
+# install the extra
+uv sync --extra rq
+
+# start Redis + an API + a worker (Docker)
+JOB_BACKEND=rq docker compose --profile rq up --build
+
+# run a worker locally (API started separately with JOB_BACKEND=rq)
+JOB_BACKEND=rq REDIS_URL=redis://localhost:6379/0 \
+  uv run uvicorn src.aggregator.api:app --port 8000 &
+uv run rq worker --url redis://localhost:6379/0 searches
+```
+
+`GET /` reports the active `job_backend`. For a different store (e.g. Postgres
+via Procrastinate, or Celery), implement the same `submit` / `get` surface and
+add it to `job_backend.build_store()`.
+
 ### Docker
 
 The image runs the REST API as a long-lived service on port 8000.

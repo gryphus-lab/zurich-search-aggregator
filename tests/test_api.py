@@ -71,7 +71,7 @@ def test_locations_grouped_by_corridor():
 # ---------------------------------------------------------------------------
 
 
-@patch("src.aggregator.api.search_apartments")
+@patch("src.aggregator.job_backend.search_apartments")
 def test_submit_returns_202_with_job_id(mock_search):
     mock_search.return_value = []
 
@@ -84,7 +84,7 @@ def test_submit_returns_202_with_job_id(mock_search):
     assert resp.headers["Location"] == body["status_url"]
 
 
-@patch("src.aggregator.api.search_apartments")
+@patch("src.aggregator.job_backend.search_apartments")
 def test_poll_returns_results_when_done(mock_search):
     mock_search.return_value = [_listing(), _listing("homegate")]
 
@@ -96,7 +96,7 @@ def test_poll_returns_results_when_done(mock_search):
     assert len(body["listings"]) == 2
 
 
-@patch("src.aggregator.api.search_apartments")
+@patch("src.aggregator.job_backend.search_apartments")
 def test_job_forwards_parameters(mock_search):
     mock_search.return_value = []
 
@@ -122,7 +122,7 @@ def test_job_forwards_parameters(mock_search):
     assert kwargs["max_pages"] == 2
 
 
-@patch("src.aggregator.api.search_apartments")
+@patch("src.aggregator.job_backend.search_apartments")
 def test_job_reports_error_status(mock_search):
     mock_search.side_effect = RuntimeError("scrape blew up")
 
@@ -147,7 +147,7 @@ def test_get_unknown_job_returns_404():
 
 
 def test_defaults_applied_when_body_empty():
-    with patch("src.aggregator.api.search_apartments") as mock_search:
+    with patch("src.aggregator.job_backend.search_apartments") as mock_search:
         mock_search.return_value = []
         job_id = client.post("/search", json={}).json()["job_id"]
         _poll(job_id)
@@ -164,8 +164,8 @@ def test_defaults_applied_when_body_empty():
 # ---------------------------------------------------------------------------
 
 
-@patch("src.aggregator.api.httpx.Client")
-@patch("src.aggregator.api.search_apartments")
+@patch("src.aggregator.job_backend.httpx.Client")
+@patch("src.aggregator.job_backend.search_apartments")
 def test_callback_url_posts_result(mock_search, mock_httpx_client):
     mock_search.return_value = [_listing()]
     posted = mock_httpx_client.return_value.__enter__.return_value.post

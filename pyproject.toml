@@ -21,6 +21,16 @@ dependencies = [
     "uvicorn>=0.34.0",
 ]
 
+[project.optional-dependencies]
+# Durable, out-of-process job queue (JobRunr-style) backed by Redis + RQ.
+# Install with: uv sync --extra rq. The in-process 'memory' backend (the
+# default, JOB_BACKEND=memory) needs none of this; these are only required to
+# run with JOB_BACKEND=rq or to run an `rq worker`.
+rq = [
+    "rq>=2.0.0",
+    "redis>=5.0.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

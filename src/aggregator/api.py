@@ -18,18 +18,16 @@ Run with:  uvicorn src.aggregator.api:app --host 0.0.0.0 --port 8000
 from __future__ import annotations
 
 from datetime import date, datetime
-from functools import partial
 from typing import List, Optional
 
-import httpx
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field, HttpUrl
 
-from .jobs import Job, JobStatus, JobStore
+from .job_backend import build_store, enqueue_search, get_backend_name
+from .jobs import Job, JobStatus
 from .locations import default_metro_search, locations_by_corridor
 from .models import ApartmentListing
 from .scrapers import AVAILABLE_SOURCES, normalize_sources
-from .service import search_apartments
 
 app = FastAPI(
     title="Zurich Search Aggregator",
@@ -42,12 +40,9 @@ app = FastAPI(
     version="0.2.0",
 )
 
-# Single-process job store. For multiple replicas, back this with a shared
-# queue/store (Redis/RQ, Celery) instead.
-_store = JobStore()
-
-# Timeout for delivering webhook callbacks.
-_CALLBACK_TIMEOUT_S = 15.0
+# Job store, selected by JOB_BACKEND (memory | rq). The in-process default
+# needs no broker; set JOB_BACKEND=rq for the durable Redis-backed queue.
+_store = build_store()
 
 
 # ---------------------------------------------------------------------------
@@ -128,15 +123,6 @@ def _to_view(job: Job) -> JobView:
     )
 
 
-def _deliver_callback(job: Job) -> None:
-    """POST the finished job to its callback_url (best-effort)."""
-    if not job.callback_url:
-        return
-    payload = _to_view(job).model_dump(mode="json")
-    with httpx.Client(timeout=_CALLBACK_TIMEOUT_S) as client:
-        client.post(job.callback_url, json=payload)
-
-
 # ---------------------------------------------------------------------------
 # Metadata endpoints
 # ---------------------------------------------------------------------------
@@ -188,24 +174,18 @@ def submit_search(req: SearchRequest, response: Response) -> JobAccepted:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    work = partial(
-        search_apartments,
-        price_min=req.price_min,
-        price_max=req.price_max,
-        move_in_from=req.move_in_from,
-        neighborhoods=req.neighborhoods,
-        metro=req.metro,
-        only_flexible=req.only_flexible,
-        max_pages=req.max_pages,
-        sources=req.sources,
-    )
-
+    params = {
+        "price_min": req.price_min,
+        "price_max": req.price_max,
+        "move_in_from": req.move_in_from,
+        "neighborhoods": req.neighborhoods,
+        "metro": req.metro,
+        "only_flexible": req.only_flexible,
+        "max_pages": req.max_pages,
+        "sources": req.sources,
+    }
     callback = str(req.callback_url) if req.callback_url else None
-    job = _store.submit(
-        work,
-        callback_url=callback,
-        on_complete=_deliver_callback if callback else None,
-    )
+    job = enqueue_search(_store, params, callback)
 
     status_url = f"/search/{job.id}"
     response.headers["Location"] = status_url
@@ -219,6 +199,16 @@ def get_search(job_id: str) -> JobView:
     if job is None:
         raise HTTPException(status_code=404, detail=f"Unknown job: {job_id}")
     return _to_view(job)
+
+
+@app.get("/", tags=["meta"])
+def root() -> dict:
+    """Service banner, including the active job backend."""
+    return {
+        "service": "zurich-search-aggregator",
+        "job_backend": get_backend_name(),
+        "docs": "/docs",
+    }
 
 
 def main() -> None:

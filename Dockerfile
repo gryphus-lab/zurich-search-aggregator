@@ -24,8 +24,10 @@ RUN useradd --create-home --uid 10001 appuser
 #    executing dependency setup scripts; --no-install-project defers our own
 #    package until the source is copied. README.md is copied because
 #    pyproject's `readme` field references it.
+# The `rq` extra is included so the same image can run either the API or an
+# RQ worker (docker compose --profile rq).
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-dev --no-build --no-install-project
+RUN uv sync --frozen --no-dev --no-build --no-install-project --extra rq
 
 # 2) Install Chromium + its system libraries via Playwright (needs root for
 #    apt). --no-project avoids building our package before the source exists.
@@ -36,7 +38,7 @@ RUN uv run --no-dev --no-project --no-build playwright install --with-deps chrom
 #    and hand ownership to the unprivileged user. Only our own (trusted) package
 #    is built here; all third-party deps were installed with --no-build above.
 COPY src ./src
-RUN uv sync --frozen --no-dev \
+RUN uv sync --frozen --no-dev --extra rq \
     && mkdir -p /app/results \
     && chown -R appuser:appuser /app /opt/pw-browsers
 
