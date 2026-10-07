@@ -128,20 +128,47 @@ Endpoints:
 - `GET /health` - liveness probe.
 - `GET /sources` - the available aggregators.
 - `GET /locations` - searchable locations grouped by metro corridor.
-- `POST /search` - run a search; JSON body mirrors the CLI options.
+- `POST /search` - submit a search job (async); returns `202` + `job_id`.
+- `GET /search/{job_id}` - poll job status; includes results when done.
 - Interactive docs at `GET /docs` (OpenAPI/Swagger UI).
 
+### Async search (submit + poll)
+
+A metro-wide scrape can take minutes, so a search is **dispatched as a job**
+rather than held on the HTTP request. `POST /search` returns immediately with a
+`job_id`; poll `GET /search/{job_id}` until `status` is `done` (or `error`).
+
 ```bash
-# Whole metro region, Flatfox + Homegate only
+# 1) Submit - returns 202 Accepted with a job id
 curl -X POST http://localhost:8000/search \
   -H 'Content-Type: application/json' \
   -d '{"metro": true, "price_min": 1700, "price_max": 3500,
        "sources": ["flatfox", "homegate"]}'
+# -> {"job_id": "ab12...", "status": "pending", "status_url": "/search/ab12..."}
+
+# 2) Poll until done
+curl http://localhost:8000/search/ab12...
+# -> {"status": "running", ...}  then  {"status": "done", "count": 12, "listings": [...]}
+```
+
+Job status is one of `pending`, `running`, `done`, `error`. Unknown job id
+returns `404`.
+
+### Webhook callback (optional)
+
+Instead of polling, pass a `callback_url` and the service POSTs the finished job
+(status + results) to it when the search completes:
+
+```bash
+curl -X POST http://localhost:8000/search \
+  -H 'Content-Type: application/json' \
+  -d '{"metro": true, "callback_url": "https://your-app.example/hook"}'
 ```
 
 Request fields: `price_min`, `price_max`, `move_in_from` (YYYY-MM-DD),
 `neighborhoods` (list; overrides `metro`), `metro`, `only_flexible`,
-`max_pages`, `sources`. An unknown source returns HTTP 422.
+`max_pages`, `sources`, `callback_url`. An unknown source returns HTTP 422 at
+submit time.
 
 ### Docker
 
