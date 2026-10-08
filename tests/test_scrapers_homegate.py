@@ -763,21 +763,26 @@ from src.aggregator.scrapers.homegate import _build_homegate_url  # noqa: E402
 
 def test_build_url_city_quartier_uses_district_path():
     url = _build_homegate_url("Oerlikon", 1700, 3000)
-    assert "/rent/apartment/district-oerlikon/matching-list" in url
+    # Matches Homegate's current scheme: /rent/real-estate/district-<name>/...
+    assert url.startswith(
+        "https://www.homegate.ch/rent/real-estate/district-oerlikon/matching-list"
+    )
     assert "ag=1700" in url
     assert "ah=3000" in url
 
 
-def test_build_url_uses_apartment_not_furnished_dwelling():
-    # All apartment types, not only furnished dwellings.
+def test_build_url_uses_real_estate_not_furnished_dwelling():
+    # All property types, not only furnished dwellings; no /en/ locale prefix.
     url = _build_homegate_url("Oerlikon", 1700, 3000)
     assert "furnished-dwelling" not in url
-    assert "/rent/apartment/" in url
+    assert "/rent/real-estate/" in url
+    assert "/en/" not in url
 
 
 def test_build_url_metro_municipality_uses_location_search():
     url = _build_homegate_url("Thalwil", 1700, 3000)
     # Metro towns are not city districts, so no district- path.
     assert "district-" not in url
+    assert url.startswith("https://www.homegate.ch/rent/real-estate/matching-list")
     assert "loc=" in url
     assert "Thalwil" in url

@@ -14,22 +14,23 @@ def _build_homegate_url(neigh: str, price_min: int, price_max: int) -> str:
     """
     Build the Homegate rent-search URL for a location.
 
+    Matches Homegate's current scheme:
+        https://www.homegate.ch/rent/real-estate/district-<name>/matching-list?ag=<min>&ah=<max>
+
     City-of-Zurich quartiers use the ``district-<name>`` path. Independent
     metro municipalities use Homegate's free-text location search instead, since
-    the district path only resolves inside the city. Uses the ``apartment``
-    category so all apartment types (not only furnished dwellings) are returned.
+    the district path only resolves inside the city. The ``real-estate``
+    category returns all property types (not only furnished dwellings).
     """
     from ..locations import is_zurich_quartier
 
+    base = "https://www.homegate.ch/rent/real-estate"
     price_q = f"?ag={price_min}&ah={price_max}"
     if is_zurich_quartier(neigh):
-        return (
-            f"https://www.homegate.ch/en/rent/apartment/district-{neigh.lower()}"
-            f"/matching-list{price_q}"
-        )
+        return f"{base}/district-{neigh.lower()}/matching-list{price_q}"
     # Metro municipality: free-text location search.
     loc = quote(f"{neigh}, Zürich")
-    return f"https://www.homegate.ch/en/rent/apartment/matching-list{price_q}&loc={loc}"
+    return f"{base}/matching-list{price_q}&loc={loc}"
 
 
 def scrape_homegate(
