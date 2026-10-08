@@ -197,3 +197,56 @@ def test_callback_url_posts_result(mock_search, mock_httpx_client):
     assert args[0] == "https://example.test/hook"
     assert kwargs["json"]["status"] == "done"
     assert kwargs["json"]["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Jobs listing + results download + UI
+# ---------------------------------------------------------------------------
+
+
+@patch("src.aggregator.job_backend.search_apartments")
+def test_jobs_lists_submitted_jobs(mock_search):
+    mock_search.return_value = [_listing()]
+
+    job_id = client.post("/search", json={}).json()["job_id"]
+    _poll(job_id)
+
+    jobs = client.get("/jobs").json()
+    assert any(j["job_id"] == job_id for j in jobs)
+    row = next(j for j in jobs if j["job_id"] == job_id)
+    assert row["status"] == "done"
+    assert row["count"] == 1
+    assert row["results_url"] == f"/search/{job_id}/results"
+
+
+@patch("src.aggregator.job_backend.search_apartments")
+def test_results_download_returns_saved_json(mock_search):
+    mock_search.return_value = [_listing(), _listing("homegate")]
+
+    job_id = client.post("/search", json={}).json()["job_id"]
+    _poll(job_id)
+
+    resp = client.get(f"/search/{job_id}/results")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) == 2
+    assert data[0]["source"] == "flatfox"
+
+
+def test_results_download_unknown_job_404():
+    resp = client.get("/search/does-not-exist/results")
+    assert resp.status_code == 404
+
+
+def test_index_served_as_html():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Zurich Search Aggregator" in resp.text
+
+
+def test_api_banner_reports_backend():
+    resp = client.get("/api")
+    assert resp.status_code == 200
+    assert resp.json()["service"] == "zurich-search-aggregator"

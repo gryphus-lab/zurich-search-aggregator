@@ -126,14 +126,26 @@ uv run uvicorn src.aggregator.api:app --host 0.0.0.0 --port 8000
 # or: uv run python -m src.aggregator.api
 ```
 
+Open `http://localhost:8000/` for the **web console**: a form for all search
+parameters, a live table of running and completed jobs (auto-refreshing), and a
+download link to each completed job's results.
+
 Endpoints:
 
+- `GET /` - the web console (HTML UI).
 - `GET /health` - liveness probe.
 - `GET /sources` - the available aggregators.
 - `GET /locations` - searchable locations grouped by metro corridor.
 - `POST /search` - submit a search job (async); returns `202` + `job_id`.
+- `GET /jobs` - list all jobs (running + completed), newest first.
 - `GET /search/{job_id}` - poll job status; includes results when done.
+- `GET /search/{job_id}/results` - download the saved results JSON.
+- `GET /api` - service banner (active job backend).
 - Interactive docs at `GET /docs` (OpenAPI/Swagger UI).
+
+Each completed job's listings are saved to `results/latest-<job_id>.json` (the
+fixed `latest.json` name is suffixed with the job id so runs are preserved
+rather than overwritten). Set `RESULTS_DIR` to change the directory.
 
 ### Async search (submit + poll)
 
