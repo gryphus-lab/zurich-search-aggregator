@@ -73,7 +73,7 @@ def test_parse_blueground_card_move_in_filter_returns_none():
     assert listing is None
 
 
-def test_parse_flatfox_card_extracts_fields_and_marks_flexible():
+def test_parse_flatfox_card_extracts_fields():
     text = "CHF 2'100\n2 rooms\nsublet temporary furnished\nfrom 12.03.2026\n55 m²"
     link = "https://flatfox.ch/flat/abc-123"
 
@@ -91,7 +91,20 @@ def test_parse_flatfox_card_extracts_fields_and_marks_flexible():
     assert "2 rooms" in listing.title
     assert listing.size_m2 == 55.0
     assert listing.available_from == date(2026, 3, 12)
-    assert (listing.description_snippet or "").startswith("[FLEXIBLE]")
+    # The scraper does NOT tag tenancy; apply_filters owns [FLEXIBLE]/[STANDARD].
+    assert not (listing.description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (listing.description_snippet or "").startswith("[STANDARD]")
+
+
+def test_parse_flatfox_card_trailing_slash_link_has_nonempty_id():
+    # Regression: links ending in '/' used to yield a blank id.
+    listing = parse_flatfox_card(
+        text="CHF 1'500\n2 rooms\n40 m²\nApartment in Altstetten, Zurich",
+        link="https://flatfox.ch/en/flat/8049-zurich/86417036/",
+        neighborhood="Altstetten",
+    )
+    assert listing is not None
+    assert listing.id == "86417036"
 
 
 def test_parse_flatfox_card_move_in_filter_returns_none():
@@ -322,7 +335,8 @@ def test_parse_flatfox_card_non_flexible_text_has_no_flexible_prefix():
     assert not (listing.description_snippet or "").startswith("[FLEXIBLE]")
 
 
-def test_parse_flatfox_card_moebliert_keyword_marks_flexible():
+def test_parse_flatfox_card_does_not_self_tag_tenancy():
+    # The scraper keeps the raw snippet; tenancy tagging is done in apply_filters.
     text = "CHF 1'900\n1 zimmer\nmöbliert wohnung in oerlikon\n35 m²"
     link = "https://flatfox.ch/flat/moebliert-1"
 
@@ -333,7 +347,8 @@ def test_parse_flatfox_card_moebliert_keyword_marks_flexible():
     )
 
     assert listing is not None
-    assert (listing.description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (listing.description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (listing.description_snippet or "").startswith("[STANDARD]")
 
 
 def test_parse_flatfox_card_price_with_apostrophe_separator():

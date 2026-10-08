@@ -67,7 +67,28 @@ def _save_results(
     if export_csv:
         import pandas as pd
 
-        df = pd.DataFrame([apt.model_dump(mode="json") for apt in listings])
+        # Human-friendly columns only; drop the internal `raw_data` debug blob
+        # (still available in the JSON output).
+        csv_columns = [
+            "source",
+            "title",
+            "price_chf",
+            "rooms",
+            "size_m2",
+            "neighborhood",
+            "address",
+            "available_from",
+            "furnished",
+            "link",
+            "id",
+            "description_snippet",
+        ]
+        df = pd.DataFrame(
+            [apt.model_dump(mode="json", exclude={"raw_data"}) for apt in listings]
+        )
+        # Reindex to the preferred order; tolerate an empty result set.
+        if not df.empty:
+            df = df.reindex(columns=csv_columns)
         csv_path = output_json.with_suffix(".csv")
         df.to_csv(csv_path, index=False)
         logger.info(f"📊 Also exported CSV → {csv_path}")

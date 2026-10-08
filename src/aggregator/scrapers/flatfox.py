@@ -64,8 +64,13 @@ def parse_flatfox_card(
     size_match = re.search(r"(\d+)\s*m²", text)
     size_m2 = float(size_match.group(1)) if size_match else None
 
-    listing = ApartmentListing(
-        id=link.split("/")[-1] if link else "ff-unknown",
+    # Use the last non-empty path segment so a trailing slash
+    # (…/86417036/) doesn't produce a blank id.
+    id_segments = [seg for seg in link.split("/") if seg]
+    listing_id = id_segments[-1] if id_segments else "ff-unknown"
+
+    return ApartmentListing(
+        id=listing_id,
         title=title,
         price_chf=price,
         neighborhood=neighborhood,
@@ -79,23 +84,8 @@ def parse_flatfox_card(
         description_snippet=text[:500],
         raw_data={"raw_text": text},
     )
-
-    # Mark flexible
-    lower = text.lower()
-    if any(
-        k in lower
-        for k in [
-            "temporary",
-            "befristet",
-            "kurzfristig",
-            "sublet",
-            "möbliert",
-            "furnished",
-        ]
-    ):
-        listing.description_snippet = "[FLEXIBLE] " + listing.description_snippet
-
-    return listing
+    # Tenancy tagging ([FLEXIBLE]/[STANDARD]) is applied centrally in
+    # apply_filters, not here, to avoid double-prefixing.
 
 
 def scrape_flatfox(

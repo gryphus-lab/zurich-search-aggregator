@@ -73,12 +73,6 @@ def _build_link(href: str) -> str:
     return "https://www.ums.ch" + href if href.startswith("/") else href
 
 
-def _is_flexible(text: str) -> bool:
-    lowered = text.lower()
-    keywords = ["befristet", "temporary", "kurzfristig", "möbliert", "furnished"]
-    return any(keyword in lowered for keyword in keywords)
-
-
 def _debug_first_card(cards) -> None:
     if not cards:
         return
@@ -116,12 +110,16 @@ def _listing_from_card(
     if move_in_from and available_from and available_from < move_in_from:
         return None
 
+    # Tenancy tagging ([FLEXIBLE]/[STANDARD]) is applied centrally in
+    # apply_filters, not here, to avoid double-prefixing.
     description_snippet = text[:400]
-    if _is_flexible(text):
-        description_snippet = "[FLEXIBLE] " + description_snippet
+
+    # Last non-empty path segment, so a trailing slash doesn't yield a blank id.
+    href_segments = [seg for seg in href.split("/") if seg]
+    listing_id = href_segments[-1] if href_segments else f"ums-{index}"
 
     return ApartmentListing(
-        id=href.split("/")[-1] if href else f"ums-{index}",
+        id=listing_id,
         title=title,
         price_chf=price,
         neighborhood=neigh,
