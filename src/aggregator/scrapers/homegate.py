@@ -72,6 +72,60 @@ def _find_result_cards(page) -> list:
     return []
 
 
+def _dismiss_consent(page) -> None:
+    """
+    Dismiss the OneTrust cookie-consent banner if present.
+
+    Homegate shows a OneTrust banner on first load that overlays the page and
+    can block the result list from rendering. Clicking "accept all"
+    (#onetrust-accept-btn-handler / #accept-recommended-btn-handler) lets the
+    results load. Best-effort: ignore if the banner isn't shown.
+    """
+    for selector in (
+        "#onetrust-accept-btn-handler",
+        "#accept-recommended-btn-handler",
+        "button[aria-label*='accept' i]",
+    ):
+        try:
+            btn = page.locator(selector).first
+            if btn.count() > 0 and btn.is_visible():
+                btn.click(timeout=3000)
+                page.wait_for_timeout(500)
+                return
+        except Exception:
+            continue
+
+
+def _dismiss_consent(page) -> None:
+    """
+    Dismiss the OneTrust cookie-consent banner if present.
+
+    Homegate shows a OneTrust modal on first visit that overlays the result
+    list; the saved page was captured after accepting it. Click the accept
+    button (several known selectors / labels) so results render. Best-effort:
+    never raise if the banner isn't there.
+    """
+    selectors = (
+        "#onetrust-accept-btn-handler",
+        "button#onetrust-accept-btn-handler",
+        "[data-test='cookie-accept']",
+        "button:has-text('Accept all')",
+        "button:has-text('Alle akzeptieren')",
+        "button:has-text('Einverstanden')",
+        "button:has-text('Zustimmen')",
+    )
+    for selector in selectors:
+        try:
+            btn = page.locator(selector).first
+            if btn.count() and btn.is_visible():
+                btn.click(timeout=3000)
+                page.wait_for_timeout(500)
+                logger.info("Dismissed cookie consent via %s", selector)
+                return
+        except Exception:
+            continue
+
+
 def _card_href(card) -> str:
     """
     Extract the listing-detail href from a card.
@@ -144,7 +198,17 @@ def scrape_homegate(
 
                 try:
                     page.goto(current_url, wait_until="domcontentloaded", timeout=90000)
-                    page.wait_for_timeout(6000)
+
+                    # Accept the OneTrust cookie banner so the result list renders.
+                    _dismiss_consent(page)
+
+                    # Wait for the result list to appear (don't just sleep blindly).
+                    try:
+                        page.wait_for_selector(
+                            "[data-test='result-list-item']", timeout=15000
+                        )
+                    except Exception:
+                        page.wait_for_timeout(4000)
 
                     # Scroll to trigger lazy-loaded result cards.
                     for _ in range(4):
@@ -188,11 +252,19 @@ def scrape_homegate(
                             if price < price_min or price > price_max:
                                 continue
 
-                            # Title / rooms
-                            title_match = re.search(
-                                r"(\d+(?:\s*[½1/2])?\s*Zimmer)", text, re.I
+                            # Title / rooms. Homegate renders e.g. "3.5\nrooms"
+                            # (English) or "3½ Zimmer" (German); allow whitespace
+                            # (incl. a newline) between the count and the word.
+                            room_match = re.search(
+                                r"(\d+(?:[.,]\d+)?|\d+\s*½|\d+\s*1/2)\s*(rooms?|zimmer)",
+                                text,
+                                re.I,
                             )
-                            title = title_match.group(0) if title_match else "Apartment"
+                            if room_match:
+                                count = room_match.group(1).replace("\n", " ").strip()
+                                title = f"{count} {room_match.group(2).lower()}"
+                            else:
+                                title = "Apartment"
 
                             # Available from
                             avail_match = re.search(

@@ -119,7 +119,8 @@ def test_scrape_homegate_title_extracted_from_zimmer_pattern(mock_sync_playwrigh
     )
 
     assert len(result) == 1
-    assert "Zimmer" in result[0].title
+    # Title is normalized to lowercase by the room/Zimmer matcher.
+    assert "zimmer" in result[0].title.lower()
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -838,3 +839,34 @@ def test_card_href_when_card_is_anchor():
     card = MagicMock()
     card.get_attribute.return_value = "/rent/4007776666"
     assert _card_href(card) == "/rent/4007776666"
+
+
+# ---------------------------------------------------------------------------
+# Real-markup regression: English "room" rendering + no-space m²
+# ---------------------------------------------------------------------------
+
+
+@patch("src.aggregator.scrapers.homegate.sync_playwright")
+def test_scrape_homegate_parses_english_room_and_nospace_m2(mock_sync_playwright):
+    # Text layout taken verbatim from a saved Homegate result card.
+    text = (
+        "Gold\nPartner\nNew\n1 / 12\nCHF 1,150.–\n1\nroom\n14m²\n"
+        "living space\nJungholzstrasse, 8050 Zürich\n"
+        "Helles möbliertes Zimmer - Heute einziehen available now"
+    )
+    href = "/rent/4003536827"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_homegate(
+        price_min=1000, price_max=1700, neighborhoods=["Seebach"], max_pages=1
+    )
+
+    assert len(result) == 1
+    listing = result[0]
+    assert listing.price_chf == 1150.0
+    assert listing.title == "1 room"  # English "room" matched, not only Zimmer
+    assert listing.size_m2 == 14.0
+    assert listing.id == "4003536827"
