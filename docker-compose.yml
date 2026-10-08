@@ -30,7 +30,7 @@ services:
   # Durable job queue (JobRunr-style). Start with the "rq" profile:
   #   JOB_BACKEND=rq docker compose --profile rq up --build
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: zurich-search-redis
     profiles: ["rq"]
     restart: unless-stopped
