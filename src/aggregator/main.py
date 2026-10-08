@@ -27,6 +27,81 @@ app = typer.Typer(
 console = Console()
 
 
+def _resolve_locations(neighborhoods: Optional[List[str]], metro: bool) -> List[str]:
+    """Pick the search locations: explicit list, else metro or city default."""
+    if neighborhoods is not None:
+        return neighborhoods
+    return default_metro_search() if metro else default_zurich_quartiers()
+
+
+def _resolve_sources_or_exit(sources: Optional[List[str]]) -> List[str]:
+    """Validate the requested sources, exiting with code 1 on an unknown name."""
+    try:
+        return normalize_sources(sources)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+
+def _parse_move_in_or_exit(move_in_from: Optional[str]) -> Optional[date]:
+    """Parse a YYYY-MM-DD string to a date, exiting with code 1 if malformed."""
+    if not move_in_from:
+        return None
+    try:
+        return datetime.strptime(move_in_from, "%Y-%m-%d").date()
+    except ValueError:
+        console.print(f"[red]Invalid date format: {move_in_from}. Use YYYY-MM-DD[/red]")
+        raise typer.Exit(code=1)
+
+
+def _save_results(
+    listings: List[ApartmentListing], output_json: Path, export_csv: bool
+) -> None:
+    """Write results to JSON (always) and CSV (when requested)."""
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_json, "w", encoding="utf-8") as f:
+        json_data = [apt.model_dump(mode="json") for apt in listings]
+        json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
+    logger.info(f"💾 Saved to {output_json}")
+
+    if export_csv:
+        import pandas as pd
+
+        df = pd.DataFrame([apt.model_dump(mode="json") for apt in listings])
+        csv_path = output_json.with_suffix(".csv")
+        df.to_csv(csv_path, index=False)
+        logger.info(f"📊 Also exported CSV → {csv_path}")
+
+
+def _render_table(listings: List[ApartmentListing]) -> None:
+    """Print a Rich table of the top matches, or a 'no matches' notice."""
+    if not listings:
+        console.print("[yellow]No matches found with current filters.[/yellow]")
+        return
+
+    table = Table(title="Top Matches", show_lines=True)
+    table.add_column("Source", style="cyan", width=12)
+    table.add_column("Title", style="magenta", width=40)
+    table.add_column("Price", justify="right", style="green")
+    table.add_column("Neighborhood", style="blue")
+    table.add_column("Available", style="yellow")
+    table.add_column("Link", style="dim", width=50)
+
+    for apt in listings[:15]:
+        avail = str(apt.available_from) if apt.available_from else "—"
+        link_short = apt.link[:47] + "..." if len(apt.link) > 50 else apt.link
+        table.add_row(
+            apt.source,
+            apt.title[:65],
+            f"CHF {apt.price_chf:,.0f}",
+            apt.neighborhood,
+            avail,
+            link_short,
+        )
+
+    console.print(table)
+
+
 def _main_impl(
     price_min: int = 1700,
     price_max: int = 3000,
@@ -60,26 +135,9 @@ def _main_impl(
             flatfox, blueground, homegate, ums). When None or empty, all run.
             An unknown source name exits with code 1.
     """
-    if neighborhoods is None:
-        neighborhoods = default_metro_search() if metro else default_zurich_quartiers()
-
-    # Resolve / validate the selected sources (empty -> all).
-    try:
-        selected_sources = normalize_sources(sources)
-    except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
-        raise typer.Exit(code=1)
-
-    # Convert string date to datetime.date if provided
-    move_in_date: Optional[date] = None
-    if move_in_from:
-        try:
-            move_in_date = datetime.strptime(move_in_from, "%Y-%m-%d").date()
-        except ValueError:
-            console.print(
-                f"[red]Invalid date format: {move_in_from}. Use YYYY-MM-DD[/red]"
-            )
-            raise typer.Exit(code=1)
+    neighborhoods = _resolve_locations(neighborhoods, metro)
+    selected_sources = _resolve_sources_or_exit(sources)
+    move_in_date = _parse_move_in_or_exit(move_in_from)
 
     logger.info(
         f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, sources={selected_sources}, only_flexible={only_flexible}, furnished_only={furnished_only}, max_pages={max_pages}"
@@ -108,52 +166,11 @@ def _main_impl(
         )
         or []
     )
-
     logger.info(f"Filtering complete: {len(filtered)} listings match criteria")
 
-    # === 3. Save results ===
-    output_json.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_json, "w", encoding="utf-8") as f:
-        json_data = [apt.model_dump(mode="json") for apt in filtered]
-        json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
-
-    logger.info(f"💾 Saved to {output_json}")
-
-    if export_csv:
-        import pandas as pd
-
-        df = pd.DataFrame([apt.model_dump(mode="json") for apt in filtered])
-        csv_path = output_json.with_suffix(".csv")
-        df.to_csv(csv_path, index=False)
-        logger.info(f"📊 Also exported CSV → {csv_path}")
-
-    # === 4. Pretty table ===
-    if filtered:
-        table = Table(title="Top Matches", show_lines=True)
-        table.add_column("Source", style="cyan", width=12)
-        table.add_column("Title", style="magenta", width=40)
-        table.add_column("Price", justify="right", style="green")
-        table.add_column("Neighborhood", style="blue")
-        table.add_column("Available", style="yellow")
-        table.add_column("Link", style="dim", width=50)
-
-        for apt in filtered[:15]:
-            avail = str(apt.available_from) if apt.available_from else "—"
-            link_short = apt.link[:47] + "..." if len(apt.link) > 50 else apt.link
-
-            table.add_row(
-                apt.source,
-                apt.title[:65],
-                f"CHF {apt.price_chf:,.0f}",
-                apt.neighborhood,
-                avail,
-                link_short,
-            )
-
-        console.print(table)
-    else:
-        console.print("[yellow]No matches found with current filters.[/yellow]")
+    # === 3. Save results + render ===
+    _save_results(filtered, output_json, export_csv)
+    _render_table(filtered)
 
 
 @app.command()
