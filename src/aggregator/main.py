@@ -32,7 +32,8 @@ def _main_impl(
     price_max: int = 3000,
     move_in_from: Optional[str] = None,
     neighborhoods: Optional[List[str]] = None,
-    only_flexible: bool = True,
+    only_flexible: bool = False,
+    furnished_only: bool = False,
     output_json: Path = Path("results/latest.json"),
     export_csv: bool = False,
     max_pages: int = 5,
@@ -49,7 +50,8 @@ def _main_impl(
         price_max (int): Maximum monthly rent in CHF.
         move_in_from (Optional[str]): Earliest move-in date in `YYYY-MM-DD` format; if provided and invalid, the command exits with code 1.
         neighborhoods (Optional[List[str]]): Locations to search. When None, defaults to the city quartiers, or the full metro region when `metro` is True.
-        only_flexible (bool): Filter for month-to-month friendly listings.
+        only_flexible (bool): If True, keep only month-to-month friendly listings. Defaults to False (all tenancy types).
+        furnished_only (bool): If True, restrict to furnished listings. Defaults to False (furnished and unfurnished).
         output_json (Path): File path to write JSON results; parent directories will be created if necessary.
         export_csv (bool): If true, also write a CSV file alongside the JSON.
         max_pages (int): Maximum result pages to scrape per location.
@@ -80,7 +82,7 @@ def _main_impl(
             raise typer.Exit(code=1)
 
     logger.info(
-        f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, sources={selected_sources}, only_flexible={only_flexible}, max_pages={max_pages}"
+        f"Starting search with parameters: price_min={price_min}, price_max={price_max}, move_in_from={move_in_date}, neighborhoods={neighborhoods}, sources={selected_sources}, only_flexible={only_flexible}, furnished_only={furnished_only}, max_pages={max_pages}"
     )
 
     # === 1. Scrape selected sources ===
@@ -91,6 +93,7 @@ def _main_impl(
         move_in_from=move_in_date,
         max_pages=max_pages,
         sources=selected_sources,
+        furnished_only=furnished_only,
     )
 
     # === 2. Apply filters + deduplication ===
@@ -191,9 +194,14 @@ def main(
         ),
     ),
     only_flexible: bool = typer.Option(
-        True,
+        False,
         "--flexible/--all",
-        help="Show only month-to-month friendly listings (recommended)",
+        help="Only month-to-month friendly listings (--flexible), or all tenancy types (--all, default)",
+    ),
+    furnished_only: bool = typer.Option(
+        False,
+        "--furnished/--any-furnishing",
+        help="Only furnished listings (--furnished), or furnished and unfurnished (--any-furnishing, default)",
     ),
     output_json: Path = typer.Option(
         "results/latest.json", "--json", "-j", help="Path to save JSON results"
@@ -210,6 +218,7 @@ def main(
         move_in_from=move_in_from,
         neighborhoods=neighborhoods,
         only_flexible=only_flexible,
+        furnished_only=furnished_only,
         output_json=output_json,
         export_csv=export_csv,
         max_pages=max_pages,

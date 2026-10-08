@@ -14,17 +14,24 @@ from ..logger import logger  # standard logger
 AVAILABLE_SOURCES: List[str] = ["flatfox", "blueground", "homegate", "ums"]
 
 
-def _call_flatfox(price_min, price_max, neighborhoods, move_in_from, max_pages):
+def _call_flatfox(
+    price_min, price_max, neighborhoods, move_in_from, max_pages, furnished_only
+):
     return scrape_flatfox(
         price_min=price_min,
         price_max=price_max,
         neighborhoods=neighborhoods,
         move_in_from=move_in_from,
         max_pages=max_pages,
+        furnished_only=furnished_only,
     )
 
 
-def _call_blueground(price_min, price_max, neighborhoods, move_in_from, max_pages):
+def _call_blueground(
+    price_min, price_max, neighborhoods, move_in_from, max_pages, furnished_only
+):
+    # Blueground only lists furnished serviced apartments (source limitation),
+    # so furnished_only has no effect here.
     return scrape_blueground(
         price_min=price_min,
         price_max=price_max,
@@ -33,7 +40,9 @@ def _call_blueground(price_min, price_max, neighborhoods, move_in_from, max_page
     )
 
 
-def _call_homegate(price_min, price_max, neighborhoods, move_in_from, max_pages):
+def _call_homegate(
+    price_min, price_max, neighborhoods, move_in_from, max_pages, furnished_only
+):
     return scrape_homegate(
         price_min=price_min,
         price_max=price_max,
@@ -43,7 +52,10 @@ def _call_homegate(price_min, price_max, neighborhoods, move_in_from, max_pages)
     )
 
 
-def _call_ums(price_min, price_max, neighborhoods, move_in_from, max_pages):
+def _call_ums(
+    price_min, price_max, neighborhoods, move_in_from, max_pages, furnished_only
+):
+    # UMS only lists furnished temporary apartments (source limitation).
     return scrape_ums(
         price_min=price_min,
         price_max=price_max,
@@ -97,6 +109,7 @@ def run_all_scrapers(
     move_in_from: Optional[date] = None,
     max_pages: int = 5,
     sources: Optional[List[str]] = None,
+    furnished_only: bool = False,
 ) -> List[ApartmentListing]:
     """
     Collect apartment listings from the selected scrapers using the provided filters.
@@ -110,6 +123,9 @@ def run_all_scrapers(
         sources (Optional[List[str]]): Which sources to run (any of
             ``flatfox``, ``blueground``, ``homegate``, ``ums``). When None or
             empty, all sources run. Unknown names raise ValueError.
+        furnished_only (bool): When True, restrict to furnished listings on
+            sources that support the distinction (Flatfox/Homegate). Blueground
+            and UMS are furnished-only by nature, so this has no effect there.
 
     Returns:
         List[ApartmentListing]: Combined listings from the scrapers that completed successfully.
@@ -121,7 +137,12 @@ def run_all_scrapers(
     for name in selected:
         try:
             results = _SCRAPER_DISPATCH[name](
-                price_min, price_max, neighborhoods, move_in_from, max_pages
+                price_min,
+                price_max,
+                neighborhoods,
+                move_in_from,
+                max_pages,
+                furnished_only,
             )
             all_listings.extend(results)
             logger.info(f"{name.capitalize()} → added {len(results)} listings")

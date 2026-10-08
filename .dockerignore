@@ -19,7 +19,6 @@ coverage.xml
 dist
 build
 results
-n8n_data
 
 # Tests and dev-only files (not needed in the runtime image)
 tests

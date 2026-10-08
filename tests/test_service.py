@@ -63,6 +63,35 @@ def test_search_wires_scrape_and_filter(mock_scrape, mock_filter):
     scrape_kwargs = mock_scrape.call_args.kwargs
     assert len(scrape_kwargs["neighborhoods"]) == 30
     assert scrape_kwargs["sources"] == ["flatfox", "blueground", "homegate", "ums"]
+    # Default: all apartment types (furnished not forced).
+    assert scrape_kwargs["furnished_only"] is False
+
+
+@patch("src.aggregator.service.apply_filters")
+@patch("src.aggregator.service.run_all_scrapers")
+def test_search_defaults_include_all_tenancy_and_furnishing(mock_scrape, mock_filter):
+    """By default the search is not restricted to flexible/furnished listings."""
+    mock_scrape.return_value = []
+    mock_filter.return_value = []
+
+    search_apartments(price_min=1700, price_max=3000)
+
+    # only_flexible defaults to False -> apply_filters keeps all tenancy types.
+    assert mock_filter.call_args.kwargs["only_month_to_month"] is False
+    # furnished_only defaults to False -> scrape not restricted to furnished.
+    assert mock_scrape.call_args.kwargs["furnished_only"] is False
+
+
+@patch("src.aggregator.service.apply_filters")
+@patch("src.aggregator.service.run_all_scrapers")
+def test_search_furnished_only_is_forwarded(mock_scrape, mock_filter):
+    mock_scrape.return_value = []
+    mock_filter.return_value = []
+
+    search_apartments(furnished_only=True, only_flexible=True)
+
+    assert mock_scrape.call_args.kwargs["furnished_only"] is True
+    assert mock_filter.call_args.kwargs["only_month_to_month"] is True
 
 
 @patch("src.aggregator.service.apply_filters")

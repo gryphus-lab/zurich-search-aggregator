@@ -1,16 +1,18 @@
 # Zurich Search Aggregator
 
-A small CLI tool that scrapes furnished apartments in Zurich and filters them for "flexible / month-to-month"-friendly listings.
+A CLI tool and REST service that scrapes apartments across the Zurich metro region and filters them.
+By default it returns **all tenancy types** (long-term and month-to-month) and **all apartment types** (furnished and unfurnished); flexible-only and furnished-only are opt-in.
 Results are written to JSON (and optionally CSV).
 
 ## What it does
 
-- Scrapes listings from supported sources (e.g. `flatfox.ch`, `theblueground.com`).
+- Scrapes listings from supported sources (`flatfox.ch`, `homegate.ch`, `theblueground.com`, `ums.ch`).
 - Filters by:
   - price range (CHF/month)
   - neighborhood(s)
   - earliest move-in date (optional)
-  - flexible/month-to-month friendliness (default on)
+  - flexible/month-to-month friendliness (opt-in via `--flexible`)
+  - furnished only (opt-in via `--furnished`)
 - Deduplicates results.
 - Saves output to `results/latest.json` (and `results/latest.csv` when `--csv` is set).
 - Prints a Rich table of top matches to your terminal.
@@ -38,7 +40,7 @@ git config core.hooksPath .githooks
 
 ### Run
 
-Basic run (defaults to neighborhoods and "flexible" filtering):
+Basic run (defaults to the city quartiers, all tenancy and furnishing types):
 
 ```bash
 python -m src.aggregator.main --min 1700 --max 3000
@@ -52,7 +54,8 @@ Common options:
 - `--neigh, -n <neigh>...`: locations to search (space-separated). Overrides `--metro`.
 - `--metro`: search the whole Zurich metro region (all corridors) instead of only the city quartiers
 - `--source, -s <name>...`: aggregator(s) to query (repeatable). Defaults to all.
-- `--flexible/--all`: show only flexible listings (default `--flexible`)
+- `--flexible/--all`: only month-to-month listings, or all tenancy types (default `--all`)
+- `--furnished/--any-furnishing`: only furnished listings, or any furnishing (default `--any-furnishing`)
 - `--json, -j <path>`: where to write JSON (default `results/latest.json`)
 - `--csv`: also export CSV beside the JSON output
 - `--pages <int>`: max result pages per location (used by scrapers where applicable)
@@ -106,10 +109,10 @@ python -m src.aggregator.main \
   --csv
 ```
 
-Example (show all listings, not just flexible):
+Example (narrow to furnished, month-to-month only):
 
 ```bash
-python -m src.aggregator.main --min 1700 --max 3000 --all
+python -m src.aggregator.main --min 1700 --max 3000 --flexible --furnished
 ```
 
 ## REST API
@@ -166,9 +169,9 @@ curl -X POST http://localhost:8000/search \
 ```
 
 Request fields: `price_min`, `price_max`, `move_in_from` (YYYY-MM-DD),
-`neighborhoods` (list; overrides `metro`), `metro`, `only_flexible`,
-`max_pages`, `sources`, `callback_url`. An unknown source returns HTTP 422 at
-submit time.
+`neighborhoods` (list; overrides `metro`), `metro`, `only_flexible` (default
+false), `furnished_only` (default false), `max_pages`, `sources`,
+`callback_url`. An unknown source returns HTTP 422 at submit time.
 
 ### Job backends (`JOB_BACKEND`)
 

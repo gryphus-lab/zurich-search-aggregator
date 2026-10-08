@@ -70,7 +70,12 @@ class SearchRequest(BaseModel):
         description="Search the whole metro region when no neighborhoods are given.",
     )
     only_flexible: bool = Field(
-        True, description="Only month-to-month friendly listings."
+        False,
+        description="Only month-to-month friendly listings. Default false (all tenancy types).",
+    )
+    furnished_only: bool = Field(
+        False,
+        description="Only furnished listings. Default false (furnished and unfurnished).",
     )
     max_pages: int = Field(5, ge=1, le=20, description="Max result pages per location.")
     sources: Optional[List[str]] = Field(
@@ -183,6 +188,7 @@ def submit_search(req: SearchRequest, response: Response) -> JobAccepted:
         "neighborhoods": req.neighborhoods,
         "metro": req.metro,
         "only_flexible": req.only_flexible,
+        "furnished_only": req.furnished_only,
         "max_pages": req.max_pages,
         "sources": req.sources,
     }
