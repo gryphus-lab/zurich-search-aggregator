@@ -44,7 +44,7 @@ _CARD_SELECTORS = (
     "[data-test='result-list-item']",
     "article[data-test='result-item']",
     "div[data-test='listing-card']",
-    "a[href*='/rent/'][href*='-']",
+    "a[href*='/rent/']",
 )
 
 

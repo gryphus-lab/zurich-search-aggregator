@@ -813,8 +813,9 @@ def test_find_result_cards_falls_back_to_listing_anchors():
 
     def locator(selector):
         loc = MagicMock()
-        # Only the anchor-fallback selector returns elements.
-        loc.all.return_value = [good, noise] if selector.startswith("a[") else []
+        # Only the anchor-fallback selector returns elements. Current Homegate
+        # detail links are numeric and do not necessarily contain a hyphen.
+        loc.all.return_value = [good, noise] if selector == "a[href*='/rent/']" else []
         return loc
 
     page.locator.side_effect = locator
