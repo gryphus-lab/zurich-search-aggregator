@@ -272,7 +272,7 @@ function statusPill(status) {
 
 function resultsCell(job) {
   if (job.results_url) {
-    return `<a class="result-link" href="${job.results_url}" target="_blank" rel="noopener">Download (${job.count ?? "?"})</a>`;
+    return `<a class="result-link" href="${job.results_url}" target="_blank" rel="noopener">Download CSV (${job.count ?? "?"})</a>`;
   }
   if (job.status === "error") {
     const title = (job.error || "").replaceAll('"', "&quot;");

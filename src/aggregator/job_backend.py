@@ -15,7 +15,6 @@ whichever backend is active, so the route code stays backend-agnostic.
 
 from __future__ import annotations
 
-import json
 import os
 from functools import partial
 from pathlib import Path
@@ -23,6 +22,7 @@ from typing import Optional
 
 import httpx
 
+from .export import write_csv
 from .jobs import Job
 from .logger import logger
 from .service import search_apartments
@@ -40,15 +40,16 @@ def results_dir() -> Path:
 
 def result_filename(job_id: str) -> str:
     """
-    Per-job result filename. The fixed 'latest.json' name is suffixed with the
-    job id so each run is preserved rather than overwriting the previous one.
+    Per-job result filename. CSV is the default output format; the fixed
+    'latest.csv' name is suffixed with the job id so each run is preserved
+    rather than overwriting the previous one.
     """
-    return f"latest-{job_id}.json"
+    return f"latest-{job_id}.csv"
 
 
 def persist_result(job: Job) -> Optional[str]:
     """
-    Write a finished job's listings to results/latest-<job_id>.json.
+    Write a finished job's listings to results/latest-<job_id>.csv.
 
     Returns the filename on success (so it can be recorded on the job), or None
     if there is nothing to write.
@@ -58,9 +59,7 @@ def persist_result(job: Job) -> Optional[str]:
     directory = results_dir()
     directory.mkdir(parents=True, exist_ok=True)
     filename = result_filename(job.id)
-    payload = [item.model_dump(mode="json") for item in job.result]
-    with open(directory / filename, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+    write_csv(job.result, directory / filename)
     logger.info("Job %s results saved to %s", job.id, filename)
     return filename
 

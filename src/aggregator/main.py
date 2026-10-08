@@ -1,5 +1,4 @@
 # src/aggregator/main.py
-import json
 import typer
 from datetime import date, datetime
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import Optional, List
 from rich.console import Console
 from rich.table import Table
 
+from .export import write_csv, write_json
 from .models import ApartmentListing
 from .scrapers import AVAILABLE_SOURCES, normalize_sources, run_all_scrapers
 from .filters import apply_filters
@@ -55,43 +55,19 @@ def _parse_move_in_or_exit(move_in_from: Optional[str]) -> Optional[date]:
 
 
 def _save_results(
-    listings: List[ApartmentListing], output_json: Path, export_csv: bool
+    listings: List[ApartmentListing], output: Path, export_json: bool
 ) -> None:
-    """Write results to JSON (always) and CSV (when requested)."""
-    output_json.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_json, "w", encoding="utf-8") as f:
-        json_data = [apt.model_dump(mode="json") for apt in listings]
-        json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
-    logger.info(f"💾 Saved to {output_json}")
+    """
+    Write results to ``output`` as CSV (the default). When ``export_json`` is
+    set, also write a JSON file (full fidelity) with the same stem.
+    """
+    write_csv(listings, output)
+    logger.info(f"💾 Saved CSV to {output}")
 
-    if export_csv:
-        import pandas as pd
-
-        # Human-friendly columns only; drop the internal `raw_data` debug blob
-        # (still available in the JSON output).
-        csv_columns = [
-            "source",
-            "title",
-            "price_chf",
-            "rooms",
-            "size_m2",
-            "neighborhood",
-            "address",
-            "available_from",
-            "furnished",
-            "link",
-            "id",
-            "description_snippet",
-        ]
-        df = pd.DataFrame(
-            [apt.model_dump(mode="json", exclude={"raw_data"}) for apt in listings]
-        )
-        # Reindex to the preferred order; tolerate an empty result set.
-        if not df.empty:
-            df = df.reindex(columns=csv_columns)
-        csv_path = output_json.with_suffix(".csv")
-        df.to_csv(csv_path, index=False)
-        logger.info(f"📊 Also exported CSV → {csv_path}")
+    if export_json:
+        json_path = output.with_suffix(".json")
+        write_json(listings, json_path)
+        logger.info(f"🧾 Also exported JSON → {json_path}")
 
 
 def _render_table(listings: List[ApartmentListing]) -> None:
@@ -130,8 +106,8 @@ def _main_impl(
     neighborhoods: Optional[List[str]] = None,
     only_flexible: bool = False,
     furnished_only: bool = False,
-    output_json: Path = Path("results/latest.json"),
-    export_csv: bool = False,
+    output: Path = Path("results/latest.csv"),
+    export_json: bool = False,
     max_pages: int = 5,
     metro: bool = False,
     sources: Optional[List[str]] = None,
@@ -139,7 +115,7 @@ def _main_impl(
     """
     Run the CLI search for apartments across the Zurich metro region and present/save filtered results.
 
-    Filters listings by price, move-in date, locations and month-to-month friendliness, deduplicates results, writes JSON to the provided path (creating parent directories), optionally exports a CSV, and prints a summary table to the console.
+    Filters listings by price, move-in date, locations and month-to-month friendliness, deduplicates results, writes CSV to the provided path (creating parent directories), optionally also writes JSON, and prints a summary table to the console.
 
     Parameters:
         price_min (int): Minimum monthly rent in CHF.
@@ -148,8 +124,8 @@ def _main_impl(
         neighborhoods (Optional[List[str]]): Locations to search. When None, defaults to the city quartiers, or the full metro region when `metro` is True.
         only_flexible (bool): If True, keep only month-to-month friendly listings. Defaults to False (all tenancy types).
         furnished_only (bool): If True, restrict to furnished listings. Defaults to False (furnished and unfurnished).
-        output_json (Path): File path to write JSON results; parent directories will be created if necessary.
-        export_csv (bool): If true, also write a CSV file alongside the JSON.
+        output (Path): File path to write CSV results; parent directories will be created if necessary.
+        export_json (bool): If true, also write a JSON file (same stem, full fidelity).
         max_pages (int): Maximum result pages to scrape per location.
         metro (bool): When True and no explicit neighborhoods are given, search the whole Zurich metro region.
         sources (Optional[List[str]]): Which aggregators to query (any of
@@ -190,7 +166,7 @@ def _main_impl(
     logger.info(f"Filtering complete: {len(filtered)} listings match criteria")
 
     # === 3. Save results + render ===
-    _save_results(filtered, output_json, export_csv)
+    _save_results(filtered, output, export_json)
     _render_table(filtered)
 
 
@@ -241,10 +217,15 @@ def main(
         "--furnished/--any-furnishing",
         help="Only furnished listings (--furnished), or furnished and unfurnished (--any-furnishing, default)",
     ),
-    output_json: Path = typer.Option(
-        "results/latest.json", "--json", "-j", help="Path to save JSON results"
+    output: Path = typer.Option(
+        "results/latest.csv",
+        "--out",
+        "-o",
+        help="Path to save CSV results (default format)",
     ),
-    export_csv: bool = typer.Option(False, "--csv", help="Also export as CSV"),
+    export_json: bool = typer.Option(
+        False, "--json", help="Also export JSON (full fidelity) alongside the CSV"
+    ),
     max_pages: int = typer.Option(
         5, "--pages", help="Max result pages to scrape per location"
     ),
@@ -257,8 +238,8 @@ def main(
         neighborhoods=neighborhoods,
         only_flexible=only_flexible,
         furnished_only=furnished_only,
-        output_json=output_json,
-        export_csv=export_csv,
+        output=output,
+        export_json=export_json,
         max_pages=max_pages,
         metro=metro,
         sources=sources,

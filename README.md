@@ -2,7 +2,7 @@
 
 A CLI tool and REST service that scrapes apartments across the Zurich metro region and filters them.
 By default it returns **all tenancy types** (long-term and month-to-month) and **all apartment types** (furnished and unfurnished); flexible-only and furnished-only are opt-in.
-Results are written to JSON (and optionally CSV).
+Results are written to CSV by default (JSON optional).
 
 ## What it does
 
@@ -14,7 +14,7 @@ Results are written to JSON (and optionally CSV).
   - flexible/month-to-month friendliness (opt-in via `--flexible`)
   - furnished only (opt-in via `--furnished`)
 - Deduplicates results.
-- Saves output to `results/latest.json` (and `results/latest.csv` when `--csv` is set).
+- Saves output to `results/latest.csv` by default (and `results/latest.json` when `--json` is set).
 - Prints a Rich table of top matches to your terminal.
 - Runs as a CLI, a FastAPI REST service (async jobs with poll/webhook), and a Docker container.
 
@@ -101,8 +101,8 @@ Common options:
 - `--source, -s <name>...`: aggregator(s) to query (repeatable). Defaults to all.
 - `--flexible/--all`: only month-to-month listings, or all tenancy types (default `--all`)
 - `--furnished/--any-furnishing`: only furnished listings, or any furnishing (default `--any-furnishing`)
-- `--json, -j <path>`: where to write JSON (default `results/latest.json`)
-- `--csv`: also export CSV beside the JSON output
+- `--out, -o <path>`: where to write CSV results (default `results/latest.csv`)
+- `--json`: also export JSON (full fidelity) alongside the CSV
 - `--pages <int>`: max result pages per location (used by scrapers where applicable)
 
 ### Search area
@@ -144,14 +144,14 @@ python -m src.aggregator.main --metro -s flatfox
 An unknown source name exits with a clear error. Note that Blueground and UMS
 are furnished-serviced-apartment sources and only cover the city of Zurich.
 
-Example (include move-in date and export CSV):
+Example (include move-in date; CSV is written by default, add JSON too):
 
 ```bash
-python -m src.aggregator.main \
+uv run python -m src.aggregator.main \
   --min 1800 --max 2800 \
   --move-in 2026-05-01 \
   --neigh Oerlikon Seebach Wipkingen Altstetten \
-  --csv
+  --json
 ```
 
 Example (narrow to furnished, month-to-month only):
@@ -184,12 +184,12 @@ Endpoints:
 - `POST /search` - submit a search job (async); returns `202` + `job_id`.
 - `GET /jobs` - list all jobs (running + completed), newest first.
 - `GET /search/{job_id}` - poll job status; includes results when done.
-- `GET /search/{job_id}/results` - download the saved results JSON.
+- `GET /search/{job_id}/results` - download the saved results CSV.
 - `GET /api` - service banner (active job backend).
 - Interactive docs at `GET /docs` (OpenAPI/Swagger UI).
 
-Each completed job's listings are saved to `results/latest-<job_id>.json` (the
-fixed `latest.json` name is suffixed with the job id so runs are preserved
+Each completed job's listings are saved to `results/latest-<job_id>.csv` (the
+fixed `latest.csv` name is suffixed with the job id so runs are preserved
 rather than overwritten). Set `RESULTS_DIR` to change the directory.
 
 ### Async search (submit + poll)
@@ -287,13 +287,13 @@ installed as the top-level `aggregator`, so use `aggregator.main`):
 ```bash
 docker run --rm -v "$PWD/results:/app/results" \
   --entrypoint python zurich-search-aggregator:latest \
-  -m aggregator.main --metro --min 1700 --max 3500 --csv
+  -m aggregator.main --metro --min 1700 --max 3500 --json
 ```
 
 ### Output
 
-- JSON: `results/latest.json` (configurable with `--json`)
-- CSV (optional): same path with `.csv` suffix (human-friendly columns; the internal `raw_data` field is excluded)
+- CSV (default): `results/latest.csv` (configurable with `--out`; human-friendly columns, the internal `raw_data` field is excluded)
+- JSON (optional, `--json`): same path with `.json` suffix (full fidelity, includes `raw_data`)
 - Logs: `results/scraper.log`
 
 ## Development

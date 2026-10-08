@@ -102,8 +102,6 @@ def test_enqueue_rq_backend_passes_params():
 # Result persistence
 # ---------------------------------------------------------------------------
 
-import json  # noqa: E402
-
 from src.aggregator.job_backend import (  # noqa: E402
     persist_result,
     result_filename,
@@ -126,8 +124,9 @@ def _done_job(job_id="abc123"):
 
 
 def test_result_filename_suffixes_job_id():
-    # The fixed 'latest.json' is suffixed with the job id so runs don't overwrite.
-    assert result_filename("abc123") == "latest-abc123.json"
+    # CSV is the default; 'latest.csv' is suffixed with the job id so runs don't
+    # overwrite.
+    assert result_filename("abc123") == "latest-abc123.csv"
 
 
 def test_persist_result_writes_uuid_suffixed_file(monkeypatch, tmp_path):
@@ -136,12 +135,13 @@ def test_persist_result_writes_uuid_suffixed_file(monkeypatch, tmp_path):
 
     name = persist_result(job)
 
-    assert name == "latest-deadbeef.json"
+    assert name == "latest-deadbeef.csv"
     path = results_dir() / name
     assert path.exists()
-    data = json.loads(path.read_text())
-    assert len(data) == 1
-    assert data[0]["source"] == "flatfox"
+    text = path.read_text()
+    header = text.splitlines()[0]
+    assert header.split(",")[:3] == ["source", "title", "price_chf"]
+    assert "flatfox" in text
 
 
 def test_persist_result_does_not_overwrite_other_jobs(monkeypatch, tmp_path):
@@ -149,8 +149,8 @@ def test_persist_result_does_not_overwrite_other_jobs(monkeypatch, tmp_path):
     persist_result(_done_job("job-one"))
     persist_result(_done_job("job-two"))
 
-    files = sorted(p.name for p in tmp_path.glob("latest-*.json"))
-    assert files == ["latest-job-one.json", "latest-job-two.json"]
+    files = sorted(p.name for p in tmp_path.glob("latest-*.csv"))
+    assert files == ["latest-job-one.csv", "latest-job-two.csv"]
 
 
 def test_persist_result_none_when_no_result(monkeypatch, tmp_path):

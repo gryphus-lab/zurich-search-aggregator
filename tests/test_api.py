@@ -220,7 +220,7 @@ def test_jobs_lists_submitted_jobs(mock_search):
 
 
 @patch("src.aggregator.job_backend.search_apartments")
-def test_results_download_returns_saved_json(mock_search):
+def test_results_download_returns_saved_csv(mock_search):
     mock_search.return_value = [_listing(), _listing("homegate")]
 
     job_id = client.post("/search", json={}).json()["job_id"]
@@ -228,10 +228,13 @@ def test_results_download_returns_saved_json(mock_search):
 
     resp = client.get(f"/search/{job_id}/results")
     assert resp.status_code == 200
-    data = resp.json()
-    assert isinstance(data, list)
-    assert len(data) == 2
-    assert data[0]["source"] == "flatfox"
+    assert "text/csv" in resp.headers["content-type"]
+    lines = resp.text.strip().splitlines()
+    header = lines[0]
+    assert header.split(",")[:3] == ["source", "title", "price_chf"]
+    assert len(lines) == 3  # header + 2 rows
+    assert "flatfox" in resp.text
+    assert "homegate" in resp.text
 
 
 def test_results_download_unknown_job_404():

@@ -274,10 +274,9 @@ def get_search(job_id: str) -> JobView:
 )
 def get_search_results(job_id: str) -> FileResponse:
     """
-    Download a finished job's saved results JSON (results/latest-<job_id>.json).
+    Download a finished job's saved results CSV (results/latest-<job_id>.csv).
 
-    Falls back to serving the in-memory result if the file is missing (e.g. a
-    different results dir), and 404s if the job isn't done.
+    404s if the job isn't done or the file is missing.
     """
     job = _store.get(job_id)
     if job is None or job.status is not JobStatus.DONE:
@@ -289,7 +288,7 @@ def get_search_results(job_id: str) -> FileResponse:
         raise HTTPException(
             status_code=404, detail=f"Results file not found for job: {job_id}"
         )
-    return FileResponse(path, media_type="application/json", filename=path.name)
+    return FileResponse(path, media_type="text/csv", filename=path.name)
 
 
 # ---------------------------------------------------------------------------

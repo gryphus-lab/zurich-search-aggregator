@@ -89,9 +89,9 @@ def test_main_valid_date_passed_to_scraper(mock_scrapers, mock_filters, tmp_path
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(move_in_from="2026-06-01", output_json=output)
+    main(move_in_from="2026-06-01", output=output)
 
     args = mock_scrapers.call_args.kwargs
     assert args["move_in_from"] == date(2026, 6, 1)
@@ -106,9 +106,9 @@ def test_main_calls_scrapers_and_filters(mock_scrapers, mock_filters, tmp_path):
     mock_scrapers.return_value = [DummyListing()]
     mock_filters.return_value = [DummyListing()]
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     mock_scrapers.assert_called_once()
     mock_filters.assert_called_once()
@@ -118,70 +118,71 @@ def test_main_filters_none_returns_empty_list(mock_scrapers, mock_filters, tmp_p
     mock_scrapers.return_value = [DummyListing()]
     mock_filters.return_value = None
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(output_json=output)
+    main(output=output)
 
-    # Should not crash → empty JSON written
+    # Should not crash → empty CSV written (header row only).
     assert output.exists()
-    data = json.loads(output.read_text())
-    assert data == []
+    lines = output.read_text().strip().splitlines()
+    assert lines[0].startswith("source,title,price_chf")
+    assert len(lines) == 1  # header only, no data rows
 
 
 # ---------------------------------------------------------------------------
-# JSON output
+# CSV output (default)
 # ---------------------------------------------------------------------------
 
 
-def test_main_writes_json_file(mock_scrapers, mock_filters, tmp_path):
+def test_main_writes_csv_file_by_default(mock_scrapers, mock_filters, tmp_path):
     listing = DummyListing()
     mock_scrapers.return_value = [listing]
     mock_filters.return_value = [listing]
 
-    output = tmp_path / "nested" / "results.json"
+    output = tmp_path / "nested" / "results.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     assert output.exists()
-
-    data = json.loads(output.read_text())
-    assert isinstance(data, list)
-    assert data[0]["id"] == "1"
+    text = output.read_text()
+    header = text.splitlines()[0]
+    assert header.split(",")[:3] == ["source", "title", "price_chf"]
+    assert "raw_data" not in header  # internal field excluded from CSV
+    assert ",1" in text or text.strip().endswith(",1")  # id present
 
 
 def test_main_creates_parent_directories(mock_scrapers, mock_filters, tmp_path):
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    output = tmp_path / "deep" / "nested" / "file.json"
+    output = tmp_path / "deep" / "nested" / "file.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     assert output.exists()
 
 
 # ---------------------------------------------------------------------------
-# CSV export
+# JSON export (opt-in)
 # ---------------------------------------------------------------------------
 
 
-def test_main_csv_export(monkeypatch, mock_scrapers, mock_filters, tmp_path):
+def test_main_json_export_writes_both(mock_scrapers, mock_filters, tmp_path):
     listing = DummyListing()
     mock_scrapers.return_value = [listing]
     mock_filters.return_value = [listing]
 
-    mock_df = MagicMock()
-    mock_pd = MagicMock(DataFrame=MagicMock(return_value=mock_df))
+    output = tmp_path / "out.csv"
 
-    monkeypatch.setitem(__import__("sys").modules, "pandas", mock_pd)
+    main(output=output, export_json=True)
 
-    output = tmp_path / "out.json"
-
-    main(output_json=output, export_csv=True)
-
-    csv_path = output.with_suffix(".csv")
-    mock_df.to_csv.assert_called_once()
-    assert str(csv_path) in str(mock_df.to_csv.call_args)
+    # CSV is always written; JSON is written alongside with the same stem.
+    assert output.exists()
+    json_path = output.with_suffix(".json")
+    assert json_path.exists()
+    data = json.loads(json_path.read_text())
+    assert isinstance(data, list)
+    assert data[0]["id"] == "1"
 
 
 # ---------------------------------------------------------------------------
@@ -196,9 +197,9 @@ def test_main_prints_table_when_results_exist(
     mock_scrapers.return_value = [listing]
     mock_filters.return_value = [listing]
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     # Should print a table
     assert mock_console.print.called
@@ -210,9 +211,9 @@ def test_main_prints_no_results_message(
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     mock_console.print.assert_called()
     args = mock_console.print.call_args[0][0]
@@ -231,9 +232,9 @@ def test_main_truncates_long_links(mock_scrapers, mock_filters, mock_console, tm
     mock_scrapers.return_value = [listing]
     mock_filters.return_value = [listing]
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     # Ensure table printed (indirectly validates truncation logic ran)
     assert mock_console.print.called
@@ -247,9 +248,9 @@ def test_main_limits_table_to_15_rows(
     mock_scrapers.return_value = listings
     mock_filters.return_value = listings
 
-    output = tmp_path / "out.json"
+    output = tmp_path / "out.csv"
 
-    main(output_json=output)
+    main(output=output)
 
     # We can't easily inspect Table rows, but we ensure no crash and print called
     assert mock_console.print.called
@@ -264,7 +265,7 @@ def test_main_default_searches_city_quartiers(mock_scrapers, mock_filters, tmp_p
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    main(output_json=tmp_path / "out.json")
+    main(output=tmp_path / "out.csv")
 
     neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
     assert neighborhoods == ["Oerlikon", "Seebach", "Wipkingen", "Altstetten"]
@@ -274,7 +275,7 @@ def test_main_metro_flag_expands_to_full_region(mock_scrapers, mock_filters, tmp
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    main(output_json=tmp_path / "out.json", metro=True)
+    main(output=tmp_path / "out.csv", metro=True)
 
     neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
     assert len(neighborhoods) == 30
@@ -288,7 +289,7 @@ def test_main_explicit_neighborhoods_override_metro(
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    main(output_json=tmp_path / "out.json", neighborhoods=["Dietikon"], metro=True)
+    main(output=tmp_path / "out.csv", neighborhoods=["Dietikon"], metro=True)
 
     neighborhoods = mock_scrapers.call_args.kwargs["neighborhoods"]
     assert neighborhoods == ["Dietikon"]
@@ -303,7 +304,7 @@ def test_main_default_runs_all_sources(mock_scrapers, mock_filters, tmp_path):
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    main(output_json=tmp_path / "out.json")
+    main(output=tmp_path / "out.csv")
 
     assert mock_scrapers.call_args.kwargs["sources"] == [
         "flatfox",
@@ -317,7 +318,7 @@ def test_main_source_subset_passed_through(mock_scrapers, mock_filters, tmp_path
     mock_scrapers.return_value = []
     mock_filters.return_value = []
 
-    main(output_json=tmp_path / "out.json", sources=["homegate", "flatfox"])
+    main(output=tmp_path / "out.csv", sources=["homegate", "flatfox"])
 
     # Canonical order is restored by normalize_sources.
     assert mock_scrapers.call_args.kwargs["sources"] == ["flatfox", "homegate"]
