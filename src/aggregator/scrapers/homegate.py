@@ -33,6 +33,64 @@ def _build_homegate_url(neigh: str, price_min: int, price_max: int) -> str:
     return f"{base}/matching-list{price_q}&loc={loc}"
 
 
+# Homegate listing-detail links look like /rent/<numeric-id> (optionally with a
+# locale/segment prefix). Anchoring on these is far more stable than guessing a
+# data-test attribute on the card wrapper, which Homegate changes often.
+_LISTING_HREF_RE = re.compile(r"/\d{6,}")
+
+# Preferred result-card selectors, tried in order. The last is a resilient
+# fallback: any anchor pointing at a listing-detail URL.
+_CARD_SELECTORS = (
+    "[data-test='result-list-item']",
+    "article[data-test='result-item']",
+    "div[data-test='listing-card']",
+    "a[href*='/rent/'][href*='-']",
+)
+
+
+def _find_result_cards(page) -> list:
+    """
+    Return result-card elements, trying progressively more generic selectors.
+
+    Homegate's result markup changes frequently, so rather than depend on one
+    attribute we try several known wrappers and finally fall back to the listing
+    anchors themselves (filtered to detail links).
+    """
+    for selector in _CARD_SELECTORS:
+        cards = page.locator(selector).all()
+        if not cards:
+            continue
+        # For the anchor fallback, keep only true listing-detail links.
+        if selector.startswith("a["):
+            cards = [
+                c
+                for c in cards
+                if _LISTING_HREF_RE.search(c.get_attribute("href") or "")
+            ]
+        if cards:
+            return cards
+    return []
+
+
+def _card_href(card) -> str:
+    """
+    Extract the listing-detail href from a card.
+
+    Works whether the card *is* the anchor (fallback selector) or *contains*
+    one. Prefers an href that looks like a listing-detail link.
+    """
+    own = card.get_attribute("href") or ""
+    if _LISTING_HREF_RE.search(own):
+        return own
+    for anchor in card.locator("a").all():
+        href = anchor.get_attribute("href") or ""
+        if _LISTING_HREF_RE.search(href):
+            return href
+    # Fall back to the first anchor's href (or the card's own, possibly empty).
+    first = card.locator("a").first
+    return first.get_attribute("href") or own
+
+
 def scrape_homegate(
     price_min: int = 1700,
     price_max: int = 3000,
@@ -88,30 +146,33 @@ def scrape_homegate(
                     page.goto(current_url, wait_until="domcontentloaded", timeout=90000)
                     page.wait_for_timeout(6000)
 
-                    # Scroll
-                    page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(3000)
+                    # Scroll to trigger lazy-loaded result cards.
+                    for _ in range(4):
+                        page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+                        page.wait_for_timeout(1500)
 
-                    cards = page.locator(
-                        "article[data-test='result-item'], div[data-test='listing-card']"
-                    ).all()
+                    cards = _find_result_cards(page)
+                    logger.info(
+                        f"Homegate {neigh} page {page_num}: found {len(cards)} cards"
+                    )
 
                     added = 0
+                    seen_links: set[str] = set()
                     for card in cards:
                         try:
                             text = card.inner_text().strip()
                             if len(text) < 40:
                                 continue
 
-                            link_elem = card.locator("a").first
-                            href = link_elem.get_attribute("href") or ""
+                            href = _card_href(card)
                             link = (
                                 "https://www.homegate.ch" + href
                                 if href.startswith("/")
                                 else href
                             )
-                            if not link:
+                            if not link or link in seen_links:
                                 continue
+                            seen_links.add(link)
 
                             # Price
                             price_match = re.search(r"CHF\s*([\d',]+)", text)

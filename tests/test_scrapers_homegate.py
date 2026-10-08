@@ -21,11 +21,14 @@ def _make_mock_card(text: str, href: str) -> MagicMock:
     """Return a MagicMock that mimics a Playwright Locator card element."""
     card = MagicMock()
     card.inner_text.return_value = text
+    # The card wrapper is not itself an anchor.
+    card.get_attribute.return_value = None
 
     link_elem = MagicMock()
     link_elem.get_attribute.return_value = href
-    # card.locator("a").first
+    # card.locator("a").first and card.locator("a").all() both resolve the anchor.
     card.locator.return_value.first = link_elem
+    card.locator.return_value.all.return_value = [link_elem]
     return card
 
 
@@ -786,3 +789,52 @@ def test_build_url_metro_municipality_uses_location_search():
     assert url.startswith("https://www.homegate.ch/rent/real-estate/matching-list")
     assert "loc=" in url
     assert "Thalwil" in url
+
+
+# ---------------------------------------------------------------------------
+# Resilient card discovery (_find_result_cards / _card_href)
+# ---------------------------------------------------------------------------
+
+from src.aggregator.scrapers.homegate import (  # noqa: E402
+    _card_href,
+    _find_result_cards,
+)
+
+
+def test_find_result_cards_falls_back_to_listing_anchors():
+    """When no card wrapper matches, fall back to listing-detail anchors."""
+    good = MagicMock()
+    good.get_attribute.return_value = "/rent/4001234567"  # looks like a detail link
+    noise = MagicMock()
+    noise.get_attribute.return_value = "/about"  # not a listing
+
+    page = MagicMock()
+
+    def locator(selector):
+        loc = MagicMock()
+        # Only the anchor-fallback selector returns elements.
+        loc.all.return_value = [good, noise] if selector.startswith("a[") else []
+        return loc
+
+    page.locator.side_effect = locator
+
+    cards = _find_result_cards(page)
+    assert cards == [good]  # the /about anchor is filtered out
+
+
+def test_card_href_prefers_listing_detail_link():
+    card = MagicMock()
+    card.get_attribute.return_value = None  # the card is not itself an anchor
+    a1 = MagicMock()
+    a1.get_attribute.return_value = "/agent/profile"
+    a2 = MagicMock()
+    a2.get_attribute.return_value = "/rent/4009998888"
+    card.locator.return_value.all.return_value = [a1, a2]
+
+    assert _card_href(card) == "/rent/4009998888"
+
+
+def test_card_href_when_card_is_anchor():
+    card = MagicMock()
+    card.get_attribute.return_value = "/rent/4007776666"
+    assert _card_href(card) == "/rent/4007776666"
