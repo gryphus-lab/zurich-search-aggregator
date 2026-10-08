@@ -177,7 +177,7 @@
   </section>
 </main>
 
-<script>
+<script type="module">
 const $ = (id) => document.getElementById(id);
 
 function fillSelect(sel, values) {
@@ -263,23 +263,29 @@ $("searchForm").addEventListener("submit", async (ev) => {
 function fmt(ts) {
   if (!ts) return "—";
   const d = new Date(ts);
-  return isNaN(d) ? ts : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? ts : d.toLocaleString();
 }
 
 function statusPill(status) {
   return `<span class="pill ${status}">${status}</span>`;
 }
 
+function resultsCell(job) {
+  if (job.results_url) {
+    return `<a class="result-link" href="${job.results_url}" target="_blank" rel="noopener">Download (${job.count ?? "?"})</a>`;
+  }
+  if (job.status === "error") {
+    const title = (job.error || "").replaceAll('"', "&quot;");
+    return `<span class="empty" title="${title}">failed</span>`;
+  }
+  return "—";
+}
+
 function jobRow(job) {
-  const results = job.results_url
-    ? `<a class="result-link" href="${job.results_url}" target="_blank" rel="noopener">Download (${job.count ?? "?"})</a>`
-    : (job.status === "error"
-        ? `<span class="empty" title="${(job.error || "").replace(/"/g, "&quot;")}">failed</span>`
-        : "—");
   return `<tr>
     <td class="job-id">${job.job_id.slice(0, 8)}</td>
     <td>${statusPill(job.status)}</td>
-    <td>${results}</td>
+    <td>${resultsCell(job)}</td>
     <td>${fmt(job.created_at)}</td>
     <td>${fmt(job.finished_at)}</td>
     <td><a class="result-link" href="/search/${job.job_id}" target="_blank" rel="noopener">status</a></td>
@@ -295,13 +301,15 @@ async function refreshJobs() {
       return;
     }
     body.innerHTML = jobs.map(jobRow).join("");
-  } catch (e) {
+  } catch {
     // Keep the last-rendered table on transient errors.
   }
 }
 
-loadFormOptions();
-refreshJobs();
+// Module scope allows top-level await; load options and the first job list
+// before starting the periodic refresh.
+await loadFormOptions();
+await refreshJobs();
 setInterval(refreshJobs, 3000);
 </script>
 </body>

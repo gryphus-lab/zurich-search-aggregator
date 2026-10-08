@@ -87,8 +87,8 @@ class JobStore:
     def list(self) -> List[Job]:
         """Return all known jobs, newest first."""
         with self._lock:
-            jobs = list(self._jobs.values())
-        return sorted(jobs, key=lambda j: j.created_at, reverse=True)
+            jobs = self._jobs.values()
+            return sorted(jobs, key=lambda j: j.created_at, reverse=True)
 
     def _set(self, job_id: str, **changes: Any) -> None:
         with self._lock:
