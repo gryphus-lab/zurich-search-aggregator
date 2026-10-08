@@ -34,8 +34,8 @@ class DummyListing:
         self.available_from = available_from
         self.source = source
 
-    def model_dump(self, mode="json"):
-        return {
+    def model_dump(self, mode="json", exclude=None):
+        data = {
             "id": self.id,
             "title": self.title,
             "price_chf": self.price_chf,
@@ -44,7 +44,11 @@ class DummyListing:
             "link": self.link,
             "available_from": self.available_from,
             "source": self.source,
+            "raw_data": {},
         }
+        for key in exclude or ():
+            data.pop(key, None)
+        return data
 
 
 @pytest.fixture

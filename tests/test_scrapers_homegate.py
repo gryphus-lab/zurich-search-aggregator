@@ -379,7 +379,9 @@ def test_scrape_homegate_befristet_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -396,7 +398,9 @@ def test_scrape_homegate_temporary_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -413,7 +417,9 @@ def test_scrape_homegate_kurzfristig_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -430,7 +436,9 @@ def test_scrape_homegate_moebliert_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")

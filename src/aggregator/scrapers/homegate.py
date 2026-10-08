@@ -175,19 +175,9 @@ def scrape_homegate(
                             )
 
                             # Mark flexible
-                            if any(
-                                k in text.lower()
-                                for k in [
-                                    "befristet",
-                                    "temporary",
-                                    "kurzfristig",
-                                    "möbliert",
-                                ]
-                            ):
-                                listing.description_snippet = (
-                                    "[FLEXIBLE] " + listing.description_snippet
-                                )
-
+                            # Tenancy tagging ([FLEXIBLE]/[STANDARD]) is applied
+                            # centrally in apply_filters, not here, to avoid
+                            # double-prefixing the description_snippet.
                             results.append(listing)
                             added += 1
 
