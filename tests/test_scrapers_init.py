@@ -102,6 +102,7 @@ def test_run_all_scrapers_passes_parameters_to_flatfox(
         neighborhoods=["Seebach", "Wipkingen"],
         move_in_from=move_in,
         max_pages=3,
+        furnished_only=False,
     )
 
 

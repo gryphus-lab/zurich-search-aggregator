@@ -36,7 +36,8 @@ def search_apartments(
     move_in_from: Optional[date] = None,
     neighborhoods: Optional[List[str]] = None,
     metro: bool = False,
-    only_flexible: bool = True,
+    only_flexible: bool = False,
+    furnished_only: bool = False,
     max_pages: int = 5,
     sources: Optional[List[str]] = None,
 ) -> List[ApartmentListing]:
@@ -44,21 +45,27 @@ def search_apartments(
     Run a full apartment search: scrape the selected sources, then filter.
 
     Parameters mirror the CLI options. ``sources`` is validated (unknown names
-    raise ValueError); None/empty means all sources. Returns the filtered,
-    deduplicated, price-sorted listings.
+    raise ValueError); None/empty means all sources.
+
+    By default this returns **all tenancy types** (long-term and month-to-month)
+    and **all apartment types** (furnished or not). Set ``only_flexible=True``
+    to keep only month-to-month friendly listings, or ``furnished_only=True``
+    to restrict to furnished listings. Returns the filtered, deduplicated,
+    price-sorted listings.
     """
     selected_sources = normalize_sources(sources)
     locations = resolve_neighborhoods(neighborhoods, metro)
 
     logger.info(
         "Service search | price=%s-%s | move_in=%s | locations=%s | "
-        "sources=%s | only_flexible=%s | max_pages=%s",
+        "sources=%s | only_flexible=%s | furnished_only=%s | max_pages=%s",
         price_min,
         price_max,
         move_in_from,
         locations,
         selected_sources,
         only_flexible,
+        furnished_only,
         max_pages,
     )
 
@@ -69,6 +76,7 @@ def search_apartments(
         move_in_from=move_in_from,
         max_pages=max_pages,
         sources=selected_sources,
+        furnished_only=furnished_only,
     )
 
     return (

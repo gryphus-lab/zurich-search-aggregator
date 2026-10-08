@@ -123,6 +123,16 @@ def test_job_forwards_parameters(mock_search):
 
 
 @patch("src.aggregator.job_backend.search_apartments")
+def test_furnished_only_forwarded(mock_search):
+    mock_search.return_value = []
+
+    job_id = client.post("/search", json={"furnished_only": True}).json()["job_id"]
+    _poll(job_id)
+
+    assert mock_search.call_args.kwargs["furnished_only"] is True
+
+
+@patch("src.aggregator.job_backend.search_apartments")
 def test_job_reports_error_status(mock_search):
     mock_search.side_effect = RuntimeError("scrape blew up")
 
@@ -155,7 +165,8 @@ def test_defaults_applied_when_body_empty():
     kwargs = mock_search.call_args.kwargs
     assert kwargs["price_min"] == 1700
     assert kwargs["price_max"] == 3000
-    assert kwargs["only_flexible"] is True
+    assert kwargs["only_flexible"] is False
+    assert kwargs["furnished_only"] is False
     assert kwargs["metro"] is False
 
 

@@ -19,7 +19,6 @@ coverage.xml
 dist
 build
 results
-n8n_data
 
 # Tests are included for the optional Dockerfile `test` target.
 # Editor / OS cruft
