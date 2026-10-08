@@ -16,34 +16,79 @@ Results are written to JSON (and optionally CSV).
 - Deduplicates results.
 - Saves output to `results/latest.json` (and `results/latest.csv` when `--csv` is set).
 - Prints a Rich table of top matches to your terminal.
+- Runs as a CLI, a FastAPI REST service (async jobs with poll/webhook), and a Docker container.
 
-### Requirements
+## Project structure
 
-- Python dependencies (see `requirements.txt`)
-- Playwright (browser binaries)
-
-After installing Python deps, install the browser binaries:
-
-```bash
-python -m playwright install chromium
+```text
+zurich-search-aggregator/
+├── src/aggregator/
+│   ├── main.py            # Typer CLI entry point
+│   ├── api.py             # FastAPI app: web console + async /search endpoints
+│   ├── service.py         # Shared search core (scrape -> filter), used by CLI + API
+│   ├── jobs.py            # In-process async job store (thread pool)
+│   ├── jobs_rq.py         # Durable Redis/RQ job store (optional `rq` extra)
+│   ├── job_backend.py     # Backend selection + result persistence + webhooks
+│   ├── filters.py         # Price / date / neighborhood / tenancy filtering + dedup
+│   ├── locations.py       # Zurich metro location registry (names, aliases, corridors)
+│   ├── models.py          # ApartmentListing (pydantic)
+│   ├── logger.py          # Logging setup
+│   ├── utils.py           # Date parsing / neighborhood normalization helpers
+│   ├── static/
+│   │   └── index.html     # Single-page web console (form + live jobs table)
+│   └── scrapers/
+│       ├── __init__.py    # run_all_scrapers + source dispatch/validation
+│       ├── flatfox.py     # flatfox.ch scraper
+│       ├── homegate.py    # homegate.ch scraper
+│       ├── blueground.py  # theblueground.com scraper (city-only, furnished)
+│       └── ums.py         # ums.ch scraper (city-only, furnished)
+├── tests/                 # pytest suite (CLI, API, jobs, scrapers, filters, …)
+├── Dockerfile             # Multi-stage build; runs the API as a non-root service
+├── docker-compose.yml     # API service (+ redis/worker under the `rq` profile)
+├── mise.toml              # Toolchain + tasks (bootstrap, run, test, lint, docker…)
+└── pyproject.toml         # Project metadata, dependencies, `rq` extra
 ```
 
-### Install
+The scrape/filter logic is shared by all front-ends via `service.search_apartments`,
+so the CLI and the REST API always behave identically.
+
+## Requirements
+
+- Python 3.14+
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- [mise](https://mise.jdx.dev/) for the task runner and toolchain (optional but recommended - it pins Python 3.14 and uv)
+- Playwright Chromium (installed during bootstrap)
+- Docker (optional - for the containerised service and the RQ backend)
+
+## Install
+
+With mise (installs Python, uv, dependencies, and the Playwright browser):
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m playwright install chromium
+mise install            # provision the toolchain (python 3.14, uv)
+mise run bootstrap       # uv sync --all-groups + playwright install chromium --with-deps
+```
+
+Or with uv directly:
+
+```bash
+uv sync --all-groups
+uv run playwright install chromium --with-deps
+```
+
+Enable the git hooks (optional):
+
+```bash
 git config core.hooksPath .githooks
 ```
 
-### Run
+## Run
 
 Basic run (defaults to the city quartiers, all tenancy and furnishing types):
 
 ```bash
-python -m src.aggregator.main --min 1700 --max 3000
+uv run python -m src.aggregator.main --min 1700 --max 3000
+# or, via mise: mise run scrape -- --min 1700 --max 3000
 ```
 
 Common options:
@@ -213,7 +258,7 @@ JOB_BACKEND=rq REDIS_URL=redis://localhost:6379/0 \
 uv run rq worker --url redis://localhost:6379/0 searches
 ```
 
-`GET /` reports the active `job_backend`. For a different store (e.g. Postgres
+`GET /api` reports the active `job_backend`. For a different store (e.g. Postgres
 via Procrastinate, or Celery), implement the same `submit` / `get` surface and
 add it to `job_backend.build_store()`.
 
@@ -236,20 +281,50 @@ docker run --rm -p 8000:8000 -v "$PWD/results:/app/results" \
   zurich-search-aggregator:latest
 ```
 
-The one-shot CLI is still available from the same image:
+The one-shot CLI is still available from the same image (the package is
+installed as the top-level `aggregator`, so use `aggregator.main`):
 
 ```bash
 docker run --rm -v "$PWD/results:/app/results" \
-  --entrypoint uv zurich-search-aggregator:latest \
-  run --no-dev python -m src.aggregator.main --metro --min 1700 --max 3500 --csv
+  --entrypoint python zurich-search-aggregator:latest \
+  -m aggregator.main --metro --min 1700 --max 3500 --csv
 ```
 
 ### Output
 
 - JSON: `results/latest.json` (configurable with `--json`)
-- CSV (optional): same path with `.csv` suffix
+- CSV (optional): same path with `.csv` suffix (human-friendly columns; the internal `raw_data` field is excluded)
 - Logs: `results/scraper.log`
+
+## Development
+
+Common tasks are defined in `mise.toml`:
+
+| Task | What it does |
+|------|--------------|
+| `mise run bootstrap` | Install dependencies + Playwright Chromium |
+| `mise run run` | Run the aggregator with default filters |
+| `mise run scrape -- <args>` | Run the CLI with custom arguments |
+| `mise run test` | Run the pytest suite |
+| `mise run coverage` | Run tests with a coverage report |
+| `mise run lint` | Ruff lint + format check |
+| `mise run format` | Ruff format + autofix |
+| `mise run docker-build` | Build the Docker image |
+| `mise run docker-compose` | Start the API via Docker Compose |
+
+Without mise, prefix the equivalents with `uv run` (e.g. `uv run pytest tests`,
+`uv run ruff check .`).
+
+The RQ-backed job tests require the optional `rq` extra; they are skipped
+automatically when it is not installed:
+
+```bash
+uv sync --all-groups --extra rq
+uv run pytest tests
+```
 
 ### Notes
 
-- "Flexible" is determined heuristically by matching keywords in the listing text/snippet.
+- "Flexible" tenancy is determined heuristically by matching keywords in the listing text/snippet.
+- Some sources omit room count / size / availability in list view, so those fields can be empty.
+- Blueground and UMS are furnished serviced-apartment sources and only cover the city of Zurich.
