@@ -799,6 +799,7 @@ def test_build_url_metro_municipality_uses_location_search():
 from src.aggregator.scrapers.homegate import (  # noqa: E402
     _card_href,
     _find_result_cards,
+    _room_title,
 )
 
 
@@ -840,6 +841,23 @@ def test_card_href_when_card_is_anchor():
     card = MagicMock()
     card.get_attribute.return_value = "/rent/4007776666"
     assert _card_href(card) == "/rent/4007776666"
+
+
+# ---------------------------------------------------------------------------
+# Room title parsing
+# ---------------------------------------------------------------------------
+
+
+def test_room_title_parses_decimal_count():
+    assert _room_title("CHF 2'500\n3.5 Zimmer\n75 m²\nOerlikon") == "3.5 zimmer"
+
+
+def test_room_title_parses_half_room_count():
+    assert _room_title("CHF 2'500\n3½ Zimmer\n75 m²\nOerlikon") == "3 ½ zimmer"
+
+
+def test_room_title_parses_fraction_room_count():
+    assert _room_title("CHF 2'500\n3 1/2 rooms\n75 m²\nOerlikon") == "3 1/2 rooms"
 
 
 # ---------------------------------------------------------------------------

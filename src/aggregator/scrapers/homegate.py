@@ -37,6 +37,14 @@ def _build_homegate_url(neigh: str, price_min: int, price_max: int) -> str:
 # locale/segment prefix). Anchoring on these is far more stable than guessing a
 # data-test attribute on the card wrapper, which Homegate changes often.
 _LISTING_HREF_RE = re.compile(r"/\d{6,}")
+_DECIMAL_ROOM_RE = re.compile(
+    r"\b(?P<count>\d+(?:[.,]\d+)?)\s*(?P<label>rooms?|zimmer)\b",
+    re.I,
+)
+_FRACTION_ROOM_RE = re.compile(
+    r"\b(?P<count>\d+)\s*(?P<fraction>½|1/2)\s*(?P<label>rooms?|zimmer)\b",
+    re.I,
+)
 
 # Preferred result-card selectors, tried in order. The last is a resilient
 # fallback: any anchor pointing at a listing-detail URL.
@@ -143,6 +151,20 @@ def _card_href(card) -> str:
     # Fall back to the first anchor's href (or the card's own, possibly empty).
     first = card.locator("a").first
     return first.get_attribute("href") or own
+
+
+def _room_title(text: str) -> str:
+    """Return Homegate's room count as a title, or a generic fallback."""
+    match = _FRACTION_ROOM_RE.search(text)
+    if match:
+        count = f"{match.group('count')} {match.group('fraction')}".strip()
+        return f"{count} {match.group('label').lower()}"
+
+    match = _DECIMAL_ROOM_RE.search(text)
+    if match:
+        return f"{match.group('count').strip()} {match.group('label').lower()}"
+
+    return "Apartment"
 
 
 def scrape_homegate(
@@ -255,16 +277,7 @@ def scrape_homegate(
                             # Title / rooms. Homegate renders e.g. "3.5\nrooms"
                             # (English) or "3½ Zimmer" (German); allow whitespace
                             # (incl. a newline) between the count and the word.
-                            room_match = re.search(
-                                r"(\d+(?:[.,]\d+)?|\d+\s*½|\d+\s*1/2)\s*(rooms?|zimmer)",
-                                text,
-                                re.I,
-                            )
-                            if room_match:
-                                count = room_match.group(1).replace("\n", " ").strip()
-                                title = f"{count} {room_match.group(2).lower()}"
-                            else:
-                                title = "Apartment"
+                            title = _room_title(text)
 
                             # Available from
                             avail_match = re.search(
