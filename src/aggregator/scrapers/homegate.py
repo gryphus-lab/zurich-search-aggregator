@@ -84,30 +84,6 @@ def _dismiss_consent(page) -> None:
     """
     Dismiss the OneTrust cookie-consent banner if present.
 
-    Homegate shows a OneTrust banner on first load that overlays the page and
-    can block the result list from rendering. Clicking "accept all"
-    (#onetrust-accept-btn-handler / #accept-recommended-btn-handler) lets the
-    results load. Best-effort: ignore if the banner isn't shown.
-    """
-    for selector in (
-        "#onetrust-accept-btn-handler",
-        "#accept-recommended-btn-handler",
-        "button[aria-label*='accept' i]",
-    ):
-        try:
-            btn = page.locator(selector).first
-            if btn.count() > 0 and btn.is_visible():
-                btn.click(timeout=3000)
-                page.wait_for_timeout(500)
-                return
-        except Exception:
-            continue
-
-
-def _dismiss_consent(page) -> None:
-    """
-    Dismiss the OneTrust cookie-consent banner if present.
-
     Homegate shows a OneTrust modal on first visit that overlays the result
     list; the saved page was captured after accepting it. Click the accept
     button (several known selectors / labels) so results render. Best-effort:
@@ -167,10 +143,209 @@ def _room_title(text: str) -> str:
     return "Apartment"
 
 
+def _price_chf(text: str) -> float:
+    match = re.search(r"CHF\s*([\d',]+)", text)
+    if not match:
+        return 0
+    return float(match.group(1).replace("'", "").replace(",", ""))
+
+
+def _available_from_text(text: str) -> Optional[date]:
+    compact_text = " ".join(text.split())
+    lower_text = compact_text.lower()
+    for prefix in ("available from", "available", "verfügbar", "ab"):
+        start = lower_text.find(prefix)
+        if start == -1:
+            continue
+        candidate = compact_text[start + len(prefix) : start + len(prefix) + 24]
+        parsed = parse_available_from(candidate.strip(" :-,."))
+        if parsed:
+            return parsed
+    return None
+
+
+def _size_m2(text: str) -> Optional[float]:
+    marker_index = text.find("m²")
+    if marker_index == -1:
+        return None
+
+    before_marker = text[:marker_index].rstrip()
+    digits = []
+    for char in reversed(before_marker):
+        if not char.isdigit():
+            break
+        digits.append(char)
+
+    if not digits:
+        return None
+    return float("".join(reversed(digits)))
+
+
+def _normalize_link(href: str) -> str:
+    return "https://www.homegate.ch" + href if href.startswith("/") else href
+
+
+def _listing_id(href: str, fallback_index: int) -> str:
+    normalized_href = href.rstrip("/") if href else ""
+    if normalized_href:
+        return normalized_href.split("/")[-1]
+    return f"hg-{fallback_index}"
+
+
+def _parse_card(
+    card,
+    neigh: str,
+    price_min: int,
+    price_max: int,
+    move_in_from: Optional[date],
+    seen_links: set[str],
+    fallback_index: int,
+) -> Optional[ApartmentListing]:
+    text = card.inner_text().strip()
+    if len(text) < 40:
+        return None
+
+    href = _card_href(card)
+    link = _normalize_link(href)
+    if not link or link in seen_links:
+        return None
+    seen_links.add(link)
+
+    price = _price_chf(text)
+    if price < price_min or price > price_max:
+        return None
+
+    available_from = _available_from_text(text)
+    if move_in_from and available_from and available_from < move_in_from:
+        return None
+
+    return ApartmentListing(
+        id=_listing_id(href, fallback_index),
+        title=_room_title(text),
+        price_chf=price,
+        neighborhood=neigh,
+        address=neigh,
+        link=link,
+        available_from=available_from,
+        size_m2=_size_m2(text),
+        rooms=None,
+        source="homegate",
+        furnished=True,
+        description_snippet=text[:450],
+        raw_data={"raw_text": text},
+    )
+
+
+def _scroll_results(page) -> None:
+    for _ in range(4):
+        page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
+        page.wait_for_timeout(1500)
+
+
+def _wait_for_results(page) -> None:
+    try:
+        page.wait_for_selector("[data-test='result-list-item']", timeout=15000)
+    except Exception:
+        page.wait_for_timeout(4000)
+
+
+def _parse_cards(
+    cards: list,
+    neigh: str,
+    price_min: int,
+    price_max: int,
+    move_in_from: Optional[date],
+    fallback_start: int,
+) -> List[ApartmentListing]:
+    listings: List[ApartmentListing] = []
+    seen_links: set[str] = set()
+
+    for card in cards:
+        try:
+            listing = _parse_card(
+                card,
+                neigh,
+                price_min,
+                price_max,
+                move_in_from,
+                seen_links,
+                fallback_start + len(listings),
+            )
+            if listing:
+                listings.append(listing)
+        except Exception:
+            continue
+
+    return listings
+
+
+def _scrape_homegate_page(
+    page,
+    current_url: str,
+    neigh: str,
+    page_num: int,
+    price_min: int,
+    price_max: int,
+    move_in_from: Optional[date],
+    fallback_start: int,
+) -> List[ApartmentListing]:
+    try:
+        page.goto(current_url, wait_until="domcontentloaded", timeout=90000)
+        _dismiss_consent(page)
+        _wait_for_results(page)
+        _scroll_results(page)
+
+        cards = _find_result_cards(page)
+        logger.info(f"Homegate {neigh} page {page_num}: found {len(cards)} cards")
+        listings = _parse_cards(
+            cards,
+            neigh,
+            price_min,
+            price_max,
+            move_in_from,
+            fallback_start,
+        )
+        logger.info(f"Homegate {neigh} page {page_num}: Added {len(listings)} listings")
+        return listings
+    except Exception as e:
+        logger.error(f"Homegate {neigh} page {page_num} failed: {e}")
+        return []
+
+
+def _scrape_homegate_neighborhood(
+    page,
+    neigh: str,
+    price_min: int,
+    price_max: int,
+    move_in_from: Optional[date],
+    max_pages: int,
+    fallback_start: int,
+) -> List[ApartmentListing]:
+    url = _build_homegate_url(neigh, price_min, price_max)
+    logger.info(f"Scraping Homegate → {neigh} | URL: {url}")
+
+    listings: List[ApartmentListing] = []
+    for page_num in range(1, max_pages + 1):
+        current_url = f"{url}&ep={page_num}" if page_num > 1 else url
+        page_listings = _scrape_homegate_page(
+            page,
+            current_url,
+            neigh,
+            page_num,
+            price_min,
+            price_max,
+            move_in_from,
+            fallback_start + len(listings),
+        )
+        listings.extend(page_listings)
+
+    return listings
+
+
 def scrape_homegate(
     price_min: int = 1700,
     price_max: int = 3000,
-    neighborhoods: List[str] = None,
+    neighborhoods: Optional[List[str]] = None,
     move_in_from: Optional[date] = None,
     max_pages: int = 5,
 ) -> List[ApartmentListing]:
@@ -207,136 +382,17 @@ def scrape_homegate(
         page = context.new_page()
 
         for neigh in neighborhoods:
-            # Homegate search URL. City quartiers use the district path; metro
-            # municipalities (not Zurich-city districts) use free-text location
-            # search. "apartment" (not "furnished-dwelling") so all apartment
-            # types are returned.
-            url = _build_homegate_url(neigh, price_min, price_max)
-
-            logger.info(f"Scraping Homegate → {neigh} | URL: {url}")
-
-            for page_num in range(1, max_pages + 1):
-                current_url = f"{url}&ep={page_num}" if page_num > 1 else url
-
-                try:
-                    page.goto(current_url, wait_until="domcontentloaded", timeout=90000)
-
-                    # Accept the OneTrust cookie banner so the result list renders.
-                    _dismiss_consent(page)
-
-                    # Wait for the result list to appear (don't just sleep blindly).
-                    try:
-                        page.wait_for_selector(
-                            "[data-test='result-list-item']", timeout=15000
-                        )
-                    except Exception:
-                        page.wait_for_timeout(4000)
-
-                    # Scroll to trigger lazy-loaded result cards.
-                    for _ in range(4):
-                        page.evaluate("window.scrollBy(0, document.body.scrollHeight)")
-                        page.wait_for_timeout(1500)
-
-                    cards = _find_result_cards(page)
-                    logger.info(
-                        f"Homegate {neigh} page {page_num}: found {len(cards)} cards"
-                    )
-
-                    added = 0
-                    seen_links: set[str] = set()
-                    for card in cards:
-                        try:
-                            text = card.inner_text().strip()
-                            if len(text) < 40:
-                                continue
-
-                            href = _card_href(card)
-                            link = (
-                                "https://www.homegate.ch" + href
-                                if href.startswith("/")
-                                else href
-                            )
-                            if not link or link in seen_links:
-                                continue
-                            seen_links.add(link)
-
-                            # Price
-                            price_match = re.search(r"CHF\s*([\d',]+)", text)
-                            price = (
-                                float(
-                                    price_match.group(1)
-                                    .replace("'", "")
-                                    .replace(",", "")
-                                )
-                                if price_match
-                                else 0
-                            )
-                            if price < price_min or price > price_max:
-                                continue
-
-                            # Title / rooms. Homegate renders e.g. "3.5\nrooms"
-                            # (English) or "3½ Zimmer" (German); allow whitespace
-                            # (incl. a newline) between the count and the word.
-                            title = _room_title(text)
-
-                            # Available from
-                            avail_match = re.search(
-                                r"(?:ab|verfügbar|available(?:\s+from)?)\s*([\d.\-\sa-zA-Z]{5,20})",
-                                text,
-                                re.I,
-                            )
-                            avail_str = avail_match.group(1) if avail_match else None
-                            available_from = parse_available_from(avail_str)
-
-                            if (
-                                move_in_from
-                                and available_from
-                                and available_from < move_in_from
-                            ):
-                                continue
-
-                            size_match = re.search(r"(\d+)\s*m²", text)
-                            size_m2 = float(size_match.group(1)) if size_match else None
-
-                            # Normalize href and extract ID
-                            normalized_href = href.rstrip("/") if href else ""
-                            listing_id = (
-                                normalized_href.split("/")[-1]
-                                if normalized_href
-                                else ""
-                            )
-                            listing = ApartmentListing(
-                                id=listing_id if listing_id else f"hg-{len(results)}",
-                                title=title,
-                                price_chf=price,
-                                neighborhood=neigh,
-                                address=neigh,
-                                link=link,
-                                available_from=available_from,
-                                size_m2=size_m2,
-                                rooms=None,
-                                source="homegate",
-                                furnished=True,
-                                description_snippet=text[:450],
-                                raw_data={"raw_text": text},
-                            )
-
-                            # Mark flexible
-                            # Tenancy tagging ([FLEXIBLE]/[STANDARD]) is applied
-                            # centrally in apply_filters, not here, to avoid
-                            # double-prefixing the description_snippet.
-                            results.append(listing)
-                            added += 1
-
-                        except Exception:
-                            continue
-
-                    logger.info(
-                        f"Homegate {neigh} page {page_num}: Added {added} listings"
-                    )
-
-                except Exception as e:
-                    logger.error(f"Homegate {neigh} page {page_num} failed: {e}")
+            results.extend(
+                _scrape_homegate_neighborhood(
+                    page,
+                    neigh,
+                    price_min,
+                    price_max,
+                    move_in_from,
+                    max_pages,
+                    len(results),
+                )
+            )
 
         browser.close()
 
