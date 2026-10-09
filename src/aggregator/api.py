@@ -18,16 +18,27 @@ Run with:  uvicorn src.aggregator.api:app --host 0.0.0.0 --port 8000
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Response, status
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, HttpUrl
 
-from .job_backend import build_store, enqueue_search, get_backend_name
+from .job_backend import (
+    build_store,
+    enqueue_search,
+    get_backend_name,
+    result_filename,
+    results_dir,
+)
 from .jobs import Job, JobStatus
 from .locations import default_metro_search, locations_by_corridor
 from .models import ApartmentListing
 from .scrapers import AVAILABLE_SOURCES, normalize_sources
+
+# Static assets (the single-page UI) live alongside this module.
+_STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
     title="Zurich Search Aggregator",
@@ -70,7 +81,12 @@ class SearchRequest(BaseModel):
         description="Search the whole metro region when no neighborhoods are given.",
     )
     only_flexible: bool = Field(
-        True, description="Only month-to-month friendly listings."
+        False,
+        description="Only month-to-month friendly listings. Default false (all tenancy types).",
+    )
+    furnished_only: bool = Field(
+        False,
+        description="Only furnished listings. Default false (furnished and unfurnished).",
     )
     max_pages: int = Field(5, ge=1, le=20, description="Max result pages per location.")
     sources: Optional[List[str]] = Field(
@@ -107,7 +123,30 @@ class JobView(BaseModel):
     finished_at: Optional[datetime] = None
     error: Optional[str] = None
     count: Optional[int] = None
+    results_url: Optional[str] = Field(
+        None, description="Download URL for the saved results (when finished)."
+    )
     listings: Optional[List[ApartmentListing]] = None
+
+
+class JobSummary(BaseModel):
+    """Compact job row for the jobs table (no listings payload)."""
+
+    job_id: str
+    status: JobStatus
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    error: Optional[str] = None
+    count: Optional[int] = None
+    results_url: Optional[str] = None
+
+
+def _results_url(job: Job) -> Optional[str]:
+    """Download URL for a finished job's results, if available."""
+    if job.status is JobStatus.DONE and job.result is not None:
+        return f"/search/{job.id}/results"
+    return None
 
 
 def _to_view(job: Job) -> JobView:
@@ -119,7 +158,21 @@ def _to_view(job: Job) -> JobView:
         finished_at=job.finished_at,
         error=job.error,
         count=None if job.result is None else len(job.result),
+        results_url=_results_url(job),
         listings=job.result,
+    )
+
+
+def _to_summary(job: Job) -> JobSummary:
+    return JobSummary(
+        job_id=job.id,
+        status=job.status,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        error=job.error,
+        count=None if job.result is None else len(job.result),
+        results_url=_results_url(job),
     )
 
 
@@ -183,6 +236,7 @@ def submit_search(req: SearchRequest, response: Response) -> JobAccepted:
         "neighborhoods": req.neighborhoods,
         "metro": req.metro,
         "only_flexible": req.only_flexible,
+        "furnished_only": req.furnished_only,
         "max_pages": req.max_pages,
         "sources": req.sources,
     }
@@ -192,6 +246,12 @@ def submit_search(req: SearchRequest, response: Response) -> JobAccepted:
     status_url = f"/search/{job.id}"
     response.headers["Location"] = status_url
     return JobAccepted(job_id=job.id, status=job.status, status_url=status_url)
+
+
+@app.get("/jobs", tags=["search"])
+def list_jobs() -> List[JobSummary]:
+    """List all jobs (running and completed), newest first - powers the UI."""
+    return [_to_summary(job) for job in _store.list()]
 
 
 @app.get(
@@ -207,8 +267,49 @@ def get_search(job_id: str) -> JobView:
     return _to_view(job)
 
 
-@app.get("/", tags=["meta"])
-def root() -> dict:
+@app.get(
+    "/search/{job_id}/results",
+    tags=["search"],
+    responses={404: {"description": "No such job, or its results are not available."}},
+)
+def get_search_results(job_id: str) -> FileResponse:
+    """
+    Download a finished job's saved results CSV (results/latest-<job_id>.csv).
+
+    404s if the job isn't done or the file is missing.
+    """
+    job = _store.get(job_id)
+    if job is None or job.status is not JobStatus.DONE:
+        raise HTTPException(
+            status_code=404, detail=f"No completed results for job: {job_id}"
+        )
+    path = results_dir() / (job.result_file or result_filename(job_id))
+    if not path.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Results file not found for job: {job_id}"
+        )
+    return FileResponse(path, media_type="text/csv", filename=path.name)
+
+
+# ---------------------------------------------------------------------------
+# UI + banner
+# ---------------------------------------------------------------------------
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def index() -> HTMLResponse:
+    """Serve the single-page search UI."""
+    index_html = _STATIC_DIR / "index.html"
+    if not index_html.exists():
+        return HTMLResponse(
+            "<h1>Zurich Search Aggregator</h1><p>UI asset missing. "
+            'API docs at <a href="/docs">/docs</a>.</p>'
+        )
+    return HTMLResponse(index_html.read_text(encoding="utf-8"))
+
+
+@app.get("/api", tags=["meta"])
+def banner() -> dict:
     """Service banner, including the active job backend."""
     return {
         "service": "zurich-search-aggregator",

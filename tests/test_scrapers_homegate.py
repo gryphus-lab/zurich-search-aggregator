@@ -21,11 +21,14 @@ def _make_mock_card(text: str, href: str) -> MagicMock:
     """Return a MagicMock that mimics a Playwright Locator card element."""
     card = MagicMock()
     card.inner_text.return_value = text
+    # The card wrapper is not itself an anchor.
+    card.get_attribute.return_value = None
 
     link_elem = MagicMock()
     link_elem.get_attribute.return_value = href
-    # card.locator("a").first
+    # card.locator("a").first and card.locator("a").all() both resolve the anchor.
     card.locator.return_value.first = link_elem
+    card.locator.return_value.all.return_value = [link_elem]
     return card
 
 
@@ -116,7 +119,8 @@ def test_scrape_homegate_title_extracted_from_zimmer_pattern(mock_sync_playwrigh
     )
 
     assert len(result) == 1
-    assert "Zimmer" in result[0].title
+    # Title is normalized to lowercase by the room/Zimmer matcher.
+    assert "zimmer" in result[0].title.lower()
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -379,7 +383,9 @@ def test_scrape_homegate_befristet_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -396,7 +402,9 @@ def test_scrape_homegate_temporary_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -413,7 +421,9 @@ def test_scrape_homegate_kurzfristig_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -430,7 +440,9 @@ def test_scrape_homegate_moebliert_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.homegate.sync_playwright")
@@ -755,21 +767,125 @@ from src.aggregator.scrapers.homegate import _build_homegate_url  # noqa: E402
 
 def test_build_url_city_quartier_uses_district_path():
     url = _build_homegate_url("Oerlikon", 1700, 3000)
-    assert "/rent/apartment/district-oerlikon/matching-list" in url
+    # Matches Homegate's current scheme: /rent/real-estate/district-<name>/...
+    assert url.startswith(
+        "https://www.homegate.ch/rent/real-estate/district-oerlikon/matching-list"
+    )
     assert "ag=1700" in url
     assert "ah=3000" in url
 
 
-def test_build_url_uses_apartment_not_furnished_dwelling():
-    # All apartment types, not only furnished dwellings.
+def test_build_url_uses_real_estate_not_furnished_dwelling():
+    # All property types, not only furnished dwellings; no /en/ locale prefix.
     url = _build_homegate_url("Oerlikon", 1700, 3000)
     assert "furnished-dwelling" not in url
-    assert "/rent/apartment/" in url
+    assert "/rent/real-estate/" in url
+    assert "/en/" not in url
 
 
 def test_build_url_metro_municipality_uses_location_search():
     url = _build_homegate_url("Thalwil", 1700, 3000)
     # Metro towns are not city districts, so no district- path.
     assert "district-" not in url
+    assert url.startswith("https://www.homegate.ch/rent/real-estate/matching-list")
     assert "loc=" in url
     assert "Thalwil" in url
+
+
+# ---------------------------------------------------------------------------
+# Resilient card discovery (_find_result_cards / _card_href)
+# ---------------------------------------------------------------------------
+
+from src.aggregator.scrapers.homegate import (  # noqa: E402
+    _card_href,
+    _find_result_cards,
+    _room_title,
+)
+
+
+def test_find_result_cards_falls_back_to_listing_anchors():
+    """When no card wrapper matches, fall back to listing-detail anchors."""
+    good = MagicMock()
+    good.get_attribute.return_value = "/rent/4001234567"  # looks like a detail link
+    noise = MagicMock()
+    noise.get_attribute.return_value = "/about"  # not a listing
+
+    page = MagicMock()
+
+    def locator(selector):
+        loc = MagicMock()
+        # Only the anchor-fallback selector returns elements. Current Homegate
+        # detail links are numeric and do not necessarily contain a hyphen.
+        loc.all.return_value = [good, noise] if selector == "a[href*='/rent/']" else []
+        return loc
+
+    page.locator.side_effect = locator
+
+    cards = _find_result_cards(page)
+    assert cards == [good]  # the /about anchor is filtered out
+
+
+def test_card_href_prefers_listing_detail_link():
+    card = MagicMock()
+    card.get_attribute.return_value = None  # the card is not itself an anchor
+    a1 = MagicMock()
+    a1.get_attribute.return_value = "/agent/profile"
+    a2 = MagicMock()
+    a2.get_attribute.return_value = "/rent/4009998888"
+    card.locator.return_value.all.return_value = [a1, a2]
+
+    assert _card_href(card) == "/rent/4009998888"
+
+
+def test_card_href_when_card_is_anchor():
+    card = MagicMock()
+    card.get_attribute.return_value = "/rent/4007776666"
+    assert _card_href(card) == "/rent/4007776666"
+
+
+# ---------------------------------------------------------------------------
+# Room title parsing
+# ---------------------------------------------------------------------------
+
+
+def test_room_title_parses_decimal_count():
+    assert _room_title("CHF 2'500\n3.5 Zimmer\n75 m²\nOerlikon") == "3.5 zimmer"
+
+
+def test_room_title_parses_half_room_count():
+    assert _room_title("CHF 2'500\n3½ Zimmer\n75 m²\nOerlikon") == "3 ½ zimmer"
+
+
+def test_room_title_parses_fraction_room_count():
+    assert _room_title("CHF 2'500\n3 1/2 rooms\n75 m²\nOerlikon") == "3 1/2 rooms"
+
+
+# ---------------------------------------------------------------------------
+# Real-markup regression: English "room" rendering + no-space m²
+# ---------------------------------------------------------------------------
+
+
+@patch("src.aggregator.scrapers.homegate.sync_playwright")
+def test_scrape_homegate_parses_english_room_and_nospace_m2(mock_sync_playwright):
+    # Text layout taken verbatim from a saved Homegate result card.
+    text = (
+        "Gold\nPartner\nNew\n1 / 12\nCHF 1,150.–\n1\nroom\n14m²\n"
+        "living space\nJungholzstrasse, 8050 Zürich\n"
+        "Helles möbliertes Zimmer - Heute einziehen available now"
+    )
+    href = "/rent/4003536827"
+
+    mock_sync_playwright.return_value = _make_playwright_mock(
+        cards=[_make_mock_card(text, href)]
+    )
+
+    result = scrape_homegate(
+        price_min=1000, price_max=1700, neighborhoods=["Seebach"], max_pages=1
+    )
+
+    assert len(result) == 1
+    listing = result[0]
+    assert listing.price_chf == 1150.0
+    assert listing.title == "1 room"  # English "room" matched, not only Zimmer
+    assert listing.size_m2 == 14.0
+    assert listing.id == "4003536827"

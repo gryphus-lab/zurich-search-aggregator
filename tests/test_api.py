@@ -123,6 +123,16 @@ def test_job_forwards_parameters(mock_search):
 
 
 @patch("src.aggregator.job_backend.search_apartments")
+def test_furnished_only_forwarded(mock_search):
+    mock_search.return_value = []
+
+    job_id = client.post("/search", json={"furnished_only": True}).json()["job_id"]
+    _poll(job_id)
+
+    assert mock_search.call_args.kwargs["furnished_only"] is True
+
+
+@patch("src.aggregator.job_backend.search_apartments")
 def test_job_reports_error_status(mock_search):
     mock_search.side_effect = RuntimeError("scrape blew up")
 
@@ -155,7 +165,8 @@ def test_defaults_applied_when_body_empty():
     kwargs = mock_search.call_args.kwargs
     assert kwargs["price_min"] == 1700
     assert kwargs["price_max"] == 3000
-    assert kwargs["only_flexible"] is True
+    assert kwargs["only_flexible"] is False
+    assert kwargs["furnished_only"] is False
     assert kwargs["metro"] is False
 
 
@@ -186,3 +197,59 @@ def test_callback_url_posts_result(mock_search, mock_httpx_client):
     assert args[0] == "https://example.test/hook"
     assert kwargs["json"]["status"] == "done"
     assert kwargs["json"]["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Jobs listing + results download + UI
+# ---------------------------------------------------------------------------
+
+
+@patch("src.aggregator.job_backend.search_apartments")
+def test_jobs_lists_submitted_jobs(mock_search):
+    mock_search.return_value = [_listing()]
+
+    job_id = client.post("/search", json={}).json()["job_id"]
+    _poll(job_id)
+
+    jobs = client.get("/jobs").json()
+    assert any(j["job_id"] == job_id for j in jobs)
+    row = next(j for j in jobs if j["job_id"] == job_id)
+    assert row["status"] == "done"
+    assert row["count"] == 1
+    assert row["results_url"] == f"/search/{job_id}/results"
+
+
+@patch("src.aggregator.job_backend.search_apartments")
+def test_results_download_returns_saved_csv(mock_search):
+    mock_search.return_value = [_listing(), _listing("homegate")]
+
+    job_id = client.post("/search", json={}).json()["job_id"]
+    _poll(job_id)
+
+    resp = client.get(f"/search/{job_id}/results")
+    assert resp.status_code == 200
+    assert "text/csv" in resp.headers["content-type"]
+    lines = resp.text.strip().splitlines()
+    header = lines[0]
+    assert header.split(",")[:3] == ["source", "title", "price_chf"]
+    assert len(lines) == 3  # header + 2 rows
+    assert "flatfox" in resp.text
+    assert "homegate" in resp.text
+
+
+def test_results_download_unknown_job_404():
+    resp = client.get("/search/does-not-exist/results")
+    assert resp.status_code == 404
+
+
+def test_index_served_as_html():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Zurich Search Aggregator" in resp.text
+
+
+def test_api_banner_reports_backend():
+    resp = client.get("/api")
+    assert resp.status_code == 200
+    assert resp.json()["service"] == "zurich-search-aggregator"

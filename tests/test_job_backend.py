@@ -96,3 +96,64 @@ def test_enqueue_rq_backend_passes_params():
 
     assert job.id == "job-1"
     assert store.submitted == (params, "https://hook.test")
+
+
+# ---------------------------------------------------------------------------
+# Result persistence
+# ---------------------------------------------------------------------------
+
+from src.aggregator.job_backend import (  # noqa: E402
+    persist_result,
+    result_filename,
+    results_dir,
+)
+from src.aggregator.jobs import Job, JobStatus  # noqa: E402
+from src.aggregator.models import ApartmentListing  # noqa: E402
+
+
+def _done_job(job_id="abc123"):
+    listing = ApartmentListing(
+        id="1",
+        title="flat",
+        price_chf=2000.0,
+        neighborhood="Oerlikon",
+        link="https://flatfox.ch/flat/1",
+        source="flatfox",
+    )
+    return Job(id=job_id, status=JobStatus.DONE, result=[listing])
+
+
+def test_result_filename_suffixes_job_id():
+    # CSV is the default; 'latest.csv' is suffixed with the job id so runs don't
+    # overwrite.
+    assert result_filename("abc123") == "latest-abc123.csv"
+
+
+def test_persist_result_writes_uuid_suffixed_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("RESULTS_DIR", str(tmp_path))
+    job = _done_job("deadbeef")
+
+    name = persist_result(job)
+
+    assert name == "latest-deadbeef.csv"
+    path = results_dir() / name
+    assert path.exists()
+    text = path.read_text()
+    header = text.splitlines()[0]
+    assert header.split(",")[:3] == ["source", "title", "price_chf"]
+    assert "flatfox" in text
+
+
+def test_persist_result_does_not_overwrite_other_jobs(monkeypatch, tmp_path):
+    monkeypatch.setenv("RESULTS_DIR", str(tmp_path))
+    persist_result(_done_job("job-one"))
+    persist_result(_done_job("job-two"))
+
+    files = sorted(p.name for p in tmp_path.glob("latest-*.csv"))
+    assert files == ["latest-job-one.csv", "latest-job-two.csv"]
+
+
+def test_persist_result_none_when_no_result(monkeypatch, tmp_path):
+    monkeypatch.setenv("RESULTS_DIR", str(tmp_path))
+    job = Job(id="x", status=JobStatus.ERROR, result=None)
+    assert persist_result(job) is None

@@ -331,7 +331,9 @@ def test_scrape_ums_befristet_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")
@@ -350,7 +352,9 @@ def test_scrape_ums_temporary_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")
@@ -369,7 +373,9 @@ def test_scrape_ums_moebliert_marks_flexible(mock_sync_playwright):
     )
 
     assert len(result) == 1
-    assert (result[0].description_snippet or "").startswith("[FLEXIBLE]")
+    assert not (result[0].description_snippet or "").startswith(
+        "[FLEXIBLE]"
+    )  # scraper no longer self-tags; apply_filters owns tagging
 
 
 @patch("src.aggregator.scrapers.ums.sync_playwright")

@@ -1,6 +1,17 @@
 import sys
 from pathlib import Path
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_results_dir(tmp_path, monkeypatch):
+    """
+    Point per-job result persistence at a temp dir so tests never write into
+    the real ./results directory.
+    """
+    monkeypatch.setenv("RESULTS_DIR", str(tmp_path / "results"))
+
 
 def pytest_configure():
     # Ensure `import src...` works when tests are run from repo root.

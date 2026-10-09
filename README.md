@@ -1,47 +1,94 @@
 # Zurich Search Aggregator
 
-A small CLI tool that scrapes furnished apartments in Zurich and filters them for "flexible / month-to-month"-friendly listings.
-Results are written to JSON (and optionally CSV).
+A CLI tool and REST service that scrapes apartments across the Zurich metro region and filters them.
+By default it returns **all tenancy types** (long-term and month-to-month) and **all apartment types** (furnished and unfurnished); flexible-only and furnished-only are opt-in.
+Results are written to CSV by default (JSON optional).
 
 ## What it does
 
-- Scrapes listings from supported sources (e.g. `flatfox.ch`, `theblueground.com`).
+- Scrapes listings from supported sources (`flatfox.ch`, `homegate.ch`, `theblueground.com`, `ums.ch`).
 - Filters by:
   - price range (CHF/month)
   - neighborhood(s)
   - earliest move-in date (optional)
-  - flexible/month-to-month friendliness (default on)
+  - flexible/month-to-month friendliness (opt-in via `--flexible`)
+  - furnished only (opt-in via `--furnished`)
 - Deduplicates results.
-- Saves output to `results/latest.json` (and `results/latest.csv` when `--csv` is set).
+- Saves output to `results/latest.csv` by default (and `results/latest.json` when `--json` is set).
 - Prints a Rich table of top matches to your terminal.
+- Runs as a CLI, a FastAPI REST service (async jobs with poll/webhook), and a Docker container.
 
-### Requirements
+## Project structure
 
-- Python dependencies (see `requirements.txt`)
-- Playwright (browser binaries)
-
-After installing Python deps, install the browser binaries:
-
-```bash
-python -m playwright install chromium
+```text
+zurich-search-aggregator/
+├── src/aggregator/
+│   ├── main.py            # Typer CLI entry point
+│   ├── api.py             # FastAPI app: web console + async /search endpoints
+│   ├── service.py         # Shared search core (scrape -> filter), used by CLI + API
+│   ├── jobs.py            # In-process async job store (thread pool)
+│   ├── jobs_rq.py         # Durable Redis/RQ job store (optional `rq` extra)
+│   ├── job_backend.py     # Backend selection + result persistence + webhooks
+│   ├── filters.py         # Price / date / neighborhood / tenancy filtering + dedup
+│   ├── locations.py       # Zurich metro location registry (names, aliases, corridors)
+│   ├── models.py          # ApartmentListing (pydantic)
+│   ├── logger.py          # Logging setup
+│   ├── utils.py           # Date parsing / neighborhood normalization helpers
+│   ├── static/
+│   │   └── index.html     # Single-page web console (form + live jobs table)
+│   └── scrapers/
+│       ├── __init__.py    # run_all_scrapers + source dispatch/validation
+│       ├── flatfox.py     # flatfox.ch scraper
+│       ├── homegate.py    # homegate.ch scraper
+│       ├── blueground.py  # theblueground.com scraper (city-only, furnished)
+│       └── ums.py         # ums.ch scraper (city-only, furnished)
+├── tests/                 # pytest suite (CLI, API, jobs, scrapers, filters, …)
+├── Dockerfile             # Multi-stage build; runs the API as a non-root service
+├── docker-compose.yml     # API service (+ redis/worker under the `rq` profile)
+├── mise.toml              # Toolchain + tasks (bootstrap, run, test, lint, docker…)
+└── pyproject.toml         # Project metadata, dependencies, `rq` extra
 ```
 
-### Install
+The scrape/filter logic is shared by all front-ends via `service.search_apartments`,
+so the CLI and the REST API always behave identically.
+
+## Requirements
+
+- Python 3.14+
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- [mise](https://mise.jdx.dev/) for the task runner and toolchain (optional but recommended - it pins Python 3.14 and uv)
+- Playwright Chromium (installed during bootstrap)
+- Docker (optional - for the containerised service and the RQ backend)
+
+## Install
+
+With mise (installs Python, uv, dependencies, and the Playwright browser):
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m playwright install chromium
+mise install            # provision the toolchain (python 3.14, uv)
+mise run bootstrap       # uv sync --all-groups + playwright install chromium --with-deps
+```
+
+Or with uv directly:
+
+```bash
+uv sync --all-groups
+uv run playwright install chromium --with-deps
+```
+
+Enable the git hooks (optional):
+
+```bash
 git config core.hooksPath .githooks
 ```
 
-### Run
+## Run
 
-Basic run (defaults to neighborhoods and "flexible" filtering):
+Basic run (defaults to the city quartiers, all tenancy and furnishing types):
 
 ```bash
-python -m src.aggregator.main --min 1700 --max 3000
+uv run python -m src.aggregator.main --min 1700 --max 3000
+# or, via mise: mise run scrape -- --min 1700 --max 3000
 ```
 
 Common options:
@@ -52,9 +99,10 @@ Common options:
 - `--neigh, -n <neigh>...`: locations to search (space-separated). Overrides `--metro`.
 - `--metro`: search the whole Zurich metro region (all corridors) instead of only the city quartiers
 - `--source, -s <name>...`: aggregator(s) to query (repeatable). Defaults to all.
-- `--flexible/--all`: show only flexible listings (default `--flexible`)
-- `--json, -j <path>`: where to write JSON (default `results/latest.json`)
-- `--csv`: also export CSV beside the JSON output
+- `--flexible/--all`: only month-to-month listings, or all tenancy types (default `--all`)
+- `--furnished/--any-furnishing`: only furnished listings, or any furnishing (default `--any-furnishing`)
+- `--out, -o <path>`: where to write CSV results (default `results/latest.csv`)
+- `--json`: also export JSON (full fidelity) alongside the CSV
 - `--pages <int>`: max result pages per location (used by scrapers where applicable)
 
 ### Search area
@@ -96,20 +144,20 @@ python -m src.aggregator.main --metro -s flatfox
 An unknown source name exits with a clear error. Note that Blueground and UMS
 are furnished-serviced-apartment sources and only cover the city of Zurich.
 
-Example (include move-in date and export CSV):
+Example (include move-in date; CSV is written by default, add JSON too):
 
 ```bash
-python -m src.aggregator.main \
+uv run python -m src.aggregator.main \
   --min 1800 --max 2800 \
   --move-in 2026-05-01 \
   --neigh Oerlikon Seebach Wipkingen Altstetten \
-  --csv
+  --json
 ```
 
-Example (show all listings, not just flexible):
+Example (narrow to furnished, month-to-month only):
 
 ```bash
-python -m src.aggregator.main --min 1700 --max 3000 --all
+python -m src.aggregator.main --min 1700 --max 3000 --flexible --furnished
 ```
 
 ## REST API
@@ -123,14 +171,26 @@ uv run uvicorn src.aggregator.api:app --host 0.0.0.0 --port 8000
 # or: uv run python -m src.aggregator.api
 ```
 
+Open `http://localhost:8000/` for the **web console**: a form for all search
+parameters, a live table of running and completed jobs (auto-refreshing), and a
+download link to each completed job's results.
+
 Endpoints:
 
+- `GET /` - the web console (HTML UI).
 - `GET /health` - liveness probe.
 - `GET /sources` - the available aggregators.
 - `GET /locations` - searchable locations grouped by metro corridor.
 - `POST /search` - submit a search job (async); returns `202` + `job_id`.
+- `GET /jobs` - list all jobs (running + completed), newest first.
 - `GET /search/{job_id}` - poll job status; includes results when done.
+- `GET /search/{job_id}/results` - download the saved results CSV.
+- `GET /api` - service banner (active job backend).
 - Interactive docs at `GET /docs` (OpenAPI/Swagger UI).
+
+Each completed job's listings are saved to `results/latest-<job_id>.csv` (the
+fixed `latest.csv` name is suffixed with the job id so runs are preserved
+rather than overwritten). Set `RESULTS_DIR` to change the directory.
 
 ### Async search (submit + poll)
 
@@ -166,9 +226,9 @@ curl -X POST http://localhost:8000/search \
 ```
 
 Request fields: `price_min`, `price_max`, `move_in_from` (YYYY-MM-DD),
-`neighborhoods` (list; overrides `metro`), `metro`, `only_flexible`,
-`max_pages`, `sources`, `callback_url`. An unknown source returns HTTP 422 at
-submit time.
+`neighborhoods` (list; overrides `metro`), `metro`, `only_flexible` (default
+false), `furnished_only` (default false), `max_pages`, `sources`,
+`callback_url`. An unknown source returns HTTP 422 at submit time.
 
 ### Job backends (`JOB_BACKEND`)
 
@@ -198,7 +258,7 @@ JOB_BACKEND=rq REDIS_URL=redis://localhost:6379/0 \
 uv run rq worker --url redis://localhost:6379/0 searches
 ```
 
-`GET /` reports the active `job_backend`. For a different store (e.g. Postgres
+`GET /api` reports the active `job_backend`. For a different store (e.g. Postgres
 via Procrastinate, or Celery), implement the same `submit` / `get` surface and
 add it to `job_backend.build_store()`.
 
@@ -221,20 +281,50 @@ docker run --rm -p 8000:8000 -v "$PWD/results:/app/results" \
   zurich-search-aggregator:latest
 ```
 
-The one-shot CLI is still available from the same image:
+The one-shot CLI is still available from the same image (the package is
+installed as the top-level `aggregator`, so use `aggregator.main`):
 
 ```bash
 docker run --rm -v "$PWD/results:/app/results" \
-  --entrypoint uv zurich-search-aggregator:latest \
-  run --no-dev python -m src.aggregator.main --metro --min 1700 --max 3500 --csv
+  --entrypoint python zurich-search-aggregator:latest \
+  -m aggregator.main --metro --min 1700 --max 3500 --json
 ```
 
 ### Output
 
-- JSON: `results/latest.json` (configurable with `--json`)
-- CSV (optional): same path with `.csv` suffix
+- CSV (default): `results/latest.csv` (configurable with `--out`; human-friendly columns, the internal `raw_data` field is excluded)
+- JSON (optional, `--json`): same path with `.json` suffix (full fidelity, includes `raw_data`)
 - Logs: `results/scraper.log`
+
+## Development
+
+Common tasks are defined in `mise.toml`:
+
+| Task | What it does |
+|------|--------------|
+| `mise run bootstrap` | Install dependencies + Playwright Chromium |
+| `mise run run` | Run the aggregator with default filters |
+| `mise run scrape -- <args>` | Run the CLI with custom arguments |
+| `mise run test` | Run the pytest suite |
+| `mise run coverage` | Run tests with a coverage report |
+| `mise run lint` | Ruff lint + format check |
+| `mise run format` | Ruff format + autofix |
+| `mise run docker-build` | Build the Docker image |
+| `mise run docker-compose` | Start the API via Docker Compose |
+
+Without mise, prefix the equivalents with `uv run` (e.g. `uv run pytest tests`,
+`uv run ruff check .`).
+
+The RQ-backed job tests require the optional `rq` extra; they are skipped
+automatically when it is not installed:
+
+```bash
+uv sync --all-groups --extra rq
+uv run pytest tests
+```
 
 ### Notes
 
-- "Flexible" is determined heuristically by matching keywords in the listing text/snippet.
+- "Flexible" tenancy is determined heuristically by matching keywords in the listing text/snippet.
+- Some sources omit room count / size / availability in list view, so those fields can be empty.
+- Blueground and UMS are furnished serviced-apartment sources and only cover the city of Zurich.

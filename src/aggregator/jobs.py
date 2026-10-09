@@ -46,6 +46,9 @@ class Job:
     result: Optional[List[ApartmentListing]] = None
     error: Optional[str] = None
     callback_url: Optional[str] = None
+    # Relative path (under the results dir) of the persisted result JSON, set
+    # once a job finishes successfully. Powers the UI's "results" link.
+    result_file: Optional[str] = None
 
 
 class JobStore:
@@ -80,6 +83,12 @@ class JobStore:
     def get(self, job_id: str) -> Optional[Job]:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def list(self) -> List[Job]:
+        """Return all known jobs, newest first."""
+        with self._lock:
+            jobs = self._jobs.values()
+            return sorted(jobs, key=lambda j: j.created_at, reverse=True)
 
     def _set(self, job_id: str, **changes: Any) -> None:
         with self._lock:
