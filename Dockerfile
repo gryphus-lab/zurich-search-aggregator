@@ -28,7 +28,7 @@ COPY mise.toml ./mise.toml
 RUN uv run --frozen pytest -q
 
 # Keep the production image free of uv, build metadata, and application source.
-FROM python:3.14-slim-bookworm AS runtime
+FROM python:3.15-slim-bookworm AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
