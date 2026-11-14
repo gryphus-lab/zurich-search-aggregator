@@ -11,7 +11,11 @@ dependencies = [
     "httpx>=0.28.1",
     "lxml>=6.1.0",
     "pandas>=3.0.2",
-    "playwright>=1.59.0",
+    # Playwright >= 1.61.0 is the first release that knows Ubuntu 26.04
+    # ("Resolute Raccoon"); older versions fail `playwright install chromium`
+    # with "Playwright does not support chromium on ubuntu26.04-x64". GitHub's
+    # ubuntu-latest moved to 26.04, so the CI browser install needs this floor.
+    "playwright>=1.61.0",
     "playwright-stealth>=2.0.3",
     "pydantic>=2.13.3",
     "python-dateutil>=2.9.0",
