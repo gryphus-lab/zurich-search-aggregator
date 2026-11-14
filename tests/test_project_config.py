@@ -125,9 +125,16 @@ def test_pyproject_dep_pydantic_version():
 def test_pyproject_dep_playwright_version():
     data = load_pyproject()
     deps = data["project"]["dependencies"]
-    playwright = next((d for d in deps if d.startswith("playwright")), None)
+    playwright = next(
+        (d for d in deps if d.startswith("playwright") and "stealth" not in d),
+        None,
+    )
     assert playwright is not None
-    assert "1.59.0" in playwright
+    # Must stay >= 1.61.0: that is the first Playwright release with Ubuntu
+    # 26.04 browser builds. Older pins fail CI's `playwright install chromium`
+    # on GitHub's ubuntu-latest (now 26.04) with "does not support chromium on
+    # ubuntu26.04-x64".
+    assert "1.61.0" in playwright
 
 
 def test_pyproject_dep_httpx_version():
